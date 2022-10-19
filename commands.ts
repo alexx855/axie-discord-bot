@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
-import { getRPSChoices } from './game'
-import { capitalize, DiscordRequest } from './utils'
+import { DiscordRequest } from './utils'
 
 export function HasGuildCommands (
   appId: string | undefined,
@@ -41,6 +40,11 @@ async function HasGuildCommand (
         })
       } else {
         console.log(`"${command.name}" command already installed`)
+        // Update command
+        const commandId = data.find((c: any) => c.name === command.name).id
+        UpdateGuildCommand(appId, guildId, commandId, command).catch((err) => {
+          console.error('Error updating command:', err)
+        })
       }
     }
   } catch (err) {
@@ -48,6 +52,28 @@ async function HasGuildCommand (
   }
 }
 
+// Updates a command
+export async function UpdateGuildCommand (
+  appId: any,
+  guildId: any,
+  commandId: any,
+  command: { [x: string]: any }
+): Promise<void> {
+  // API endpoint to get and post guild commands
+  const endpoint = `applications/${appId}/guilds/${guildId}/commands/${commandId}`
+
+  try {
+    const res = await DiscordRequest(endpoint, { method: 'PATCH', body: command })
+    const data = await res.json()
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (data) {
+      console.log(`"${command.name}" command updated`)
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
 // Installs a command
 export async function InstallGuildCommand (
   appId: any,
@@ -64,40 +90,44 @@ export async function InstallGuildCommand (
   }
 }
 
-// Get the game choices from game.js
-function createCommandChoices (): any[] {
-  const choices = getRPSChoices()
-  const commandChoices: any[] = []
-
-  for (const choice of choices) {
-    commandChoices.push({
-      name: capitalize(choice),
-      value: choice.toLowerCase()
-    })
-  }
-
-  return commandChoices
-}
-
-// Simple test command
-export const TEST_COMMAND = {
-  name: 'test',
-  description: 'Basic guild command',
+// Command that returns custom axie data, like estimated price
+export const AXIE_COMMAND = {
+  name: 'axie',
+  description: 'Get custom axie data by ID',
+  options: [
+    {
+      name: 'axie_id',
+      description: 'Axie ID',
+      type: 3,
+      required: true
+    }
+  ],
   type: 1
 }
 
-// Command containing options
-export const CHALLENGE_COMMAND = {
-  name: 'challenge',
-  description: 'Challenge to a match of rock paper scissors',
+// Commands for the orders management
+export const GET_ORDERS_COMMAND = {
+  name: 'get_orders',
+  description: 'Get open bot orders',
+  type: 1
+}
+
+export const REMOVE_ORDER_COMMAND = {
+  name: 'remove_order',
+  description: 'Remove open bot order',
   options: [
     {
+      name: 'order_id',
+      description: 'Order ID',
       type: 3,
-      name: 'object',
-      description: 'Pick your object',
-      required: true,
-      choices: createCommandChoices()
+      required: true
     }
   ],
+  type: 1
+}
+
+export const ADD_ORDER_COMMAND = {
+  name: 'add_order',
+  description: 'Add bot order',
   type: 1
 }
