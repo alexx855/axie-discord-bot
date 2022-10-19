@@ -169,7 +169,7 @@ app.post('/interactions', async function (req, res) {
             },
           });
         } catch (err) {
-          console.error('Error sending message:', err);
+          console.error('Error sending message:', err)
         }
       }
     }
@@ -177,7 +177,11 @@ app.post('/interactions', async function (req, res) {
 });
 
 app.get('/' , (req, res) => {
-  res.send("Hello World")
+  res.send("Hello bot!");
+});
+
+app.get('/interactions' , (req, res) => {
+  res.send("Hello interactions")
 });
 
 app.listen(PORT, () => {
