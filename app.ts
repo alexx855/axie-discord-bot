@@ -1,43 +1,45 @@
+/* eslint-disable @typescript-eslint/no-misused-promises */
+/* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
+/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import * as dotenv from 'dotenv'
-dotenv.config()
-import express from 'express';
+import express from 'express'
 import {
   InteractionType,
   InteractionResponseType,
   InteractionResponseFlags,
   MessageComponentTypes,
-  ButtonStyleTypes,
-} from 'discord-interactions';
-import { VerifyDiscordRequest, getRandomEmoji, DiscordRequest } from './utils';
-import { getShuffledOptions, getResult } from './game';
-import {
-  CHALLENGE_COMMAND,
-  TEST_COMMAND,
-  HasGuildCommands,
-} from './commands';
+  ButtonStyleTypes
+} from 'discord-interactions'
+import { VerifyDiscordRequest, getRandomEmoji, DiscordRequest } from './utils'
+import { getShuffledOptions, getResult } from './game'
+import { CHALLENGE_COMMAND, TEST_COMMAND, HasGuildCommands } from './commands'
+dotenv.config()
 
 // Create an express app
-const app = express();
+const app = express()
 // Get port, or default to 3000
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000
 // Parse request body and verifies incoming requests using discord-interactions package
-app.use(express.json({ verify: VerifyDiscordRequest(process.env.PUBLIC_KEY || '') }));
+console.log('Verifying requests', process.env.PUBLIC_KEY || '')
+app.use(
+  express.json({ verify: VerifyDiscordRequest(process.env.PUBLIC_KEY || '') })
+)
 
 // Store for in-progress games. In production, you'd want to use a DB
-const activeGames:any = {};
+const activeGames: any = {}
 
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
  */
-app.post('/interactions', async function (req, res) {
+app.post('/axiebot/interactions', async (req, res) => {
   // Interaction type and data
-  const { type, id, data } = req.body;
+  const { type, id, data } = req.body
 
   /**
    * Handle verification requests
    */
   if (type === InteractionType.PING) {
-    return res.send({ type: InteractionResponseType.PONG });
+    return res.send({ type: InteractionResponseType.PONG })
   }
 
   /**
@@ -45,7 +47,7 @@ app.post('/interactions', async function (req, res) {
    * See https://discord.com/developers/docs/interactions/application-commands#slash-commands
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
-    const { name } = data;
+    const { name } = data
 
     // "test" guild command
     if (name === 'test') {
@@ -54,26 +56,27 @@ app.post('/interactions', async function (req, res) {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           // Fetches a random emoji to send from a helper function
-          content: 'hello world ' + getRandomEmoji(),
-        },
-      });
+          content: 'hello world ' + getRandomEmoji()
+        }
+      })
     }
     // "challenge" guild command
     if (name === 'challenge' && id) {
-      const userId = req.body.member.user.id;
+      const userId = req.body.member.user.id
       // User's object choice
-      const objectName = req.body.data.options[0].value;
+      const objectName = req.body.data.options[0].value
 
       // Create active game using message ID as the game ID
       activeGames[id] = {
         id: userId,
-        objectName,
-      };
+        objectName
+      }
 
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           // Fetches a random emoji to send from a helper function
+          // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
           content: `Rock papers scissors challenge from <@${userId}>`,
           components: [
             {
@@ -82,15 +85,16 @@ app.post('/interactions', async function (req, res) {
                 {
                   type: MessageComponentTypes.BUTTON,
                   // Append the game ID to use later on
+                  // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
                   custom_id: `accept_button_${req.body.id}`,
                   label: 'Accept',
-                  style: ButtonStyleTypes.PRIMARY,
-                },
-              ],
-            },
-          ],
-        },
-      });
+                  style: ButtonStyleTypes.PRIMARY
+                }
+              ]
+            }
+          ]
+        }
+      })
     }
   }
 
@@ -100,13 +104,14 @@ app.post('/interactions', async function (req, res) {
    */
   if (type === InteractionType.MESSAGE_COMPONENT) {
     // custom_id set in payload when sending message component
-    const componentId = data.custom_id;
+    const componentId = data.custom_id
 
     if (componentId.startsWith('accept_button_')) {
       // get the associated game ID
-      const gameId = componentId.replace('accept_button_', '');
+      const gameId = componentId.replace('accept_button_', '')
       // Delete message with token in request body
-      const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`
       try {
         await res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -122,75 +127,83 @@ app.post('/interactions', async function (req, res) {
                   {
                     type: MessageComponentTypes.STRING_SELECT,
                     // Append game ID
+                    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
                     custom_id: `select_choice_${gameId}`,
-                    options: getShuffledOptions(),
-                  },
-                ],
-              },
-            ],
-          },
-        });
+                    options: getShuffledOptions()
+                  }
+                ]
+              }
+            ]
+          }
+        })
         // Delete previous message
-        await DiscordRequest(endpoint, { method: 'DELETE' });
+        await DiscordRequest(endpoint, { method: 'DELETE' })
       } catch (err) {
-        console.error('Error sending message:', err);
+        console.error('Error sending message:', err)
       }
     } else if (componentId.startsWith('select_choice_')) {
       // get the associated game ID
-      const gameId = componentId.replace('select_choice_', '');
+      const gameId = componentId.replace('select_choice_', '')
 
       if (activeGames[gameId]) {
         // Get user ID and object choice for responding user
-        const userId = req.body.member.user.id;
-        const objectName = data.values[0];
+        const userId = req.body.member.user.id
+        const objectName = data.values[0]
         // Calculate result from helper function
         const resultStr = getResult(activeGames[gameId], {
           id: userId,
-          objectName,
-        });
+          objectName
+        })
 
         // Remove game from storage
-        delete activeGames[gameId];
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete activeGames[gameId]
         // Update message with token in request body
-        const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`
 
         try {
           // Send results
           await res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: { content: resultStr },
-          });
+            data: { content: resultStr }
+          })
           // Update ephemeral message
           await DiscordRequest(endpoint, {
             method: 'PATCH',
             body: {
               content: 'Nice choice ' + getRandomEmoji(),
-              components: [],
-            },
-          });
+              components: []
+            }
+          })
         } catch (err) {
           console.error('Error sending message:', err)
         }
       }
     }
   }
-});
+})
 
-app.get('/' , (req, res) => {
-  res.send("Hello bot!");
-});
+// app.get('/', (req, res) => {
+//   res.send('Hello bot!')
+// })
 
-app.get('/interactions' , (req, res) => {
-  res.send("Hello interactions")
-});
+app.get('/axiebot/terms-of-service', (req, res) => {
+  // TODO: Add terms of service, discord requires it for the authorized application
+  res.send('Terms of Service')
+})
+
+app.get('/axiebot/privacy-policy', (req, res) => {
+  // TODO: Add privacy policy, discord requires it for the authorized application
+  res.send('Privacy Policy')
+})
 
 app.listen(PORT, () => {
-  console.log('Listening on port', PORT);
-  console.log( process.env.APP_ID, process.env.GUILD_ID)
+  console.log('Listening on port', PORT)
+  console.log(process.env.APP_ID, process.env.GUILD_ID)
   // Check if guild commands from commands.js are installed (if not, install them)
   HasGuildCommands(process.env.APP_ID, process.env.GUILD_ID, [
     TEST_COMMAND,
-    CHALLENGE_COMMAND,
-  ]);
-
-});
+    CHALLENGE_COMMAND
+  ])
+})
