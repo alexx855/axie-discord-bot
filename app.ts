@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-misused-promises */
 import * as dotenv from 'dotenv'
 import express from 'express'
 import {
@@ -6,8 +7,30 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import { VerifyDiscordRequest } from './utils'
+import { createClient } from 'redis'
 import { HasGuildCommands, AXIE_COMMAND, ADD_ORDER_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND } from './commands'
+import { Client } from 'pg'
 dotenv.config()
+
+// redis client
+const redisClient = createClient({
+  socket: {
+    host: 'redis',
+    port: 6379
+  },
+  password: process.env.REDIS_PASSWORD ?? 'password'
+}).on('error', (err) => console.log('Redis redisClient Error', err))
+
+// postgres client
+const postgresClient = new Client(
+  {
+    user: process.env.POSTGRES_USER ?? 'postgres',
+    host: 'postgres',
+    database: process.env.POSTGRES_DB ?? 'axiebot',
+    password: process.env.POSTGRES_PASSWORD ?? 'password',
+    port: 5432
+  }
+).on('error', (err) => console.log('Postgres postgresClient Error', err))
 
 // Create an express app
 const app = express()
@@ -22,7 +45,7 @@ app.use(
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
  */
-app.post('/axiebot/interactions', (req, res) => {
+app.post('/axiebot/interactions', async (req, res) => {
   // Interaction type and data
   const { type, id, data } = req.body
   console.log(req.body)
@@ -98,27 +121,34 @@ app.post('/axiebot/interactions', (req, res) => {
                   type: MessageComponentTypes.INPUT_TEXT,
                   custom_id: 'market_props_text',
                   style: 1,
-                  label: 'Type the market filter props from the URL'
-                },
+                  label: 'Market filter props from the URL'
+                }
+              ]
+            },
+            {
+              type: MessageComponentTypes.ACTION_ROW,
+              components: [
                 {
                   type: MessageComponentTypes.INPUT_TEXT,
-                  custom_id: 'max_price_text',
+                  custom_id: 'my_longer_text',
+                  // Bigger text box for input
                   style: 1,
-                  label: 'Max price'
-                },
-                {
-                  type: MessageComponentTypes.INPUT_TEXT,
-                  custom_id: 'min_price_text',
-                  style: 1,
-                  label: 'Min price'
+                  label: 'Type some (longer) text'
                 }
               ]
             }
-
           ]
         }
       })
     }
+
+    // If command is not recognized, send an error message
+    return res.send({
+      type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      data: {
+        content: 'Unknown command'
+      }
+    })
   }
 
   /**
@@ -139,7 +169,6 @@ app.post('/axiebot/interactions', (req, res) => {
       }
 
       // TODO: save the data in a DB
-
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
@@ -158,9 +187,41 @@ app.post('/axiebot/interactions', (req, res) => {
   }
 })
 
-// app.get('/', (req, res) => {
-//   res.send('Hello bot!')
-// })
+app.listen(PORT, async () => {
+  console.log('Listening on port', PORT)
+
+  // test postgress
+  try {
+    await postgresClient.connect()
+    const res = await postgresClient.query('SELECT $1::text as message', ['Hello postgres!'])
+    console.log(res.rows[0].message) // Hello world!
+    await postgresClient.end()
+  } catch (error) {
+    console.log(error)
+  }
+
+  // test redis
+  try {
+    await redisClient.connect()
+    await redisClient.set('key', 'Hello redis!')
+    const value = await redisClient.get('key')
+    console.log(value)
+  } catch (error) {
+    console.log(error)
+  }
+
+  // Check if guild commands are installed (if not, install them)
+  HasGuildCommands(process.env.APP_ID, process.env.GUILD_ID, [
+    AXIE_COMMAND,
+    GET_ORDERS_COMMAND,
+    REMOVE_ORDER_COMMAND,
+    ADD_ORDER_COMMAND
+  ])
+})
+
+app.get('/axiebot', async (req, res) => {
+  res.send('hello axiebot!')
+})
 
 app.get('/axiebot/terms-of-service', (req, res) => {
   // TODO: Add terms of service, discord requires it for the authorized application
@@ -170,16 +231,4 @@ app.get('/axiebot/terms-of-service', (req, res) => {
 app.get('/axiebot/privacy-policy', (req, res) => {
   // TODO: Add privacy policy, discord requires it for the authorized application
   res.send('Privacy Policy')
-})
-
-app.listen(PORT, () => {
-  console.log('Listening on port', PORT)
-
-  // Check if guild commands are installed (if not, install them)
-  HasGuildCommands(process.env.APP_ID, process.env.GUILD_ID, [
-    AXIE_COMMAND,
-    GET_ORDERS_COMMAND,
-    REMOVE_ORDER_COMMAND,
-    ADD_ORDER_COMMAND
-  ])
 })

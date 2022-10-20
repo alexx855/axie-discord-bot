@@ -1,27 +1,16 @@
 version: '3.7'
 services:
   axiebot:
-    # user: node
     build: .
-    # Overrides default command so things don't shut down after the process ends.
-    command: sleep infinity
     volumes:
       - .:/workspace:cached
-      # Uncomment the next line to use Docker from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker-compose for details.
-      # - /var/run/docker.sock:/var/run/docker.sock 
     ports:
       - target: 3000
         published: 3000
         protocol: tcp
     depends_on:
       - postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER-axiebot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-axiebot}
-      POSTGRES_DB: ${POSTGRES_DB-axiebot}
-      # DATABASE_URL: "postgres://${POSTGRES_USER}@postgres:5432/${POSTGRES_DB}"
-      DATABASE_URL: "postgresql://${POSTGRES_USER}@postgres:5432/${POSTGRES_DB}"
-    # network_mode: service:postgres
+      - redis
   postgres:
     image: postgres:alpine
     ports:
@@ -29,6 +18,17 @@ services:
         published: 5432
         protocol: tcp
     environment:
-      POSTGRES_USER: ${POSTGRES_USER-axiebot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-axiebot}
+      POSTGRES_USER: ${POSTGRES_USER-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-password}
       POSTGRES_DB: ${POSTGRES_DB-axiebot}
+    volumes:
+      - ./data-postgres:/var/lib/postgresql/data
+  redis:
+    image: redis:alpine
+    command: /bin/sh -c "redis-server --requirepass ${REDIS_PASSWORD-password}"
+    volumes:
+      - ./data-redis:/data
+    ports:
+      - target: 6379
+        published: 6379
+        protocol: tcp
