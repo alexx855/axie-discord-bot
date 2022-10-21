@@ -22,6 +22,7 @@
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
 				"dbaeumer.vscode-eslint",
+				"eamodio.gitlens",
 				"GitHub.copilot"
 			]
 		}
