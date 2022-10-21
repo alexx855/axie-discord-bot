@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
-import * as dotenv from 'dotenv'
 import express from 'express'
 import {
   InteractionType,
@@ -10,6 +9,7 @@ import { VerifyDiscordRequest } from './utils'
 import { createClient } from 'redis'
 import { HasGuildCommands, AXIE_COMMAND, ADD_ORDER_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND } from './commands'
 import { Client } from 'pg'
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 interface OrderInterface {
