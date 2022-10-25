@@ -6,6 +6,7 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import { VerifyDiscordRequest } from './utils'
+import { GRAPHQL_URL } from './constants'
 import { createClient } from 'redis'
 import { HasGuildCommands, AXIE_COMMAND, ADD_ORDER_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND } from './commands'
 import { Client } from 'pg'
@@ -82,8 +83,8 @@ app.use(
 app.post('/interactions', async (req, res) => {
   // Interaction type and data
   const { type, id, data } = req.body
-  console.log(req.body)
-  console.log('Interaction ID:', id)
+  // console.log(req.body)
+  // console.log('Interaction ID:', id)
 
   /**
    * Handle verification requests
@@ -102,13 +103,91 @@ app.post('/interactions', async (req, res) => {
 
     if (name === 'axie') {
       // Send a message into the channel where command was triggered from
+      const axieId = data.options[0].value as string
 
-      const axieID = data.options[0].value as string
-      let content = 'Here is what i have about this Axie #' + axieID
-      // TODO: get axie data from rpc
-      content += ' \n\n https://axieinfinity.com/axie/' + axieID
+      // Send a simple query to the graphql api to get the axie data
+      const query = `
+        query GetAxieDetail($axieId: ID!) {
+          axie(axieId: $axieId) {
+            id
+            name
+            owner
+            genes
+            class
+            breedCount
+            parts {
+                id
+                name
+                class
+                type
+            }
+            stats {
+                hp
+                speed
+                skill
+                morale
+            }
+            auction {
+                startingPrice
+                endingPrice
+                startingTimestamp
+                endingTimestamp
+                duration
+                timeLeft
+                currentPrice
+                currentPriceUSD
+                suggestedPrice
+                seller
+                listingIndex
+                state
+            }
+            ownerProfile {
+                name
+            }
+            battleInfo {
+                banned
+                banUntil
+                level
+            }
+            children {
+                id
+                name
+                class
+            }
+          }
+        }
+      `
+      const variables = {
+        axieId
+      }
 
-      // TODO: check if valid axie id
+      let content = 'Axie not found';
+
+      try {
+        const response = await fetch(GRAPHQL_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query, variables })
+        })
+
+        const data = await response.json()
+
+        if (data?.data?.axie) {
+          const axie = data.data.axie
+          content = `
+            **${axie.name}**
+            Class: ${axie.class}
+            Owner: ${axie.ownerProfile?.name ?? axie.owner}
+            Price: ${axie.auction?.currentPriceUSD ?? 'Not for sale'}
+            Link: https://marketplace.axieinfinity.com/axie/${axie.id}
+          `
+        }
+
+      } catch (error) {
+        console.log(error)
+      }
 
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -354,6 +433,7 @@ app.listen(PORT, async () => {
     REMOVE_ORDER_COMMAND,
     ADD_ORDER_COMMAND
   ])
+
 })
 
 app.get('/', async (req, res) => {

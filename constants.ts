@@ -24,3 +24,5 @@ export const CONTRACT_ERC721_BATCH_TRANSFER_ABI_JSON_PATH = 'abis/erc721_batch_t
 
 export const CONTRACT_MARKETPLACE_V2_ADDRESS = '0xfff9ce5f71ca6178d3beecedb61e7eff1602950e'
 export const CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH = 'abis/market_v2.json'
+
+export const GRAPHQL_URL = 'https://graphql-gateway.axieinfinity.com/graphql'
