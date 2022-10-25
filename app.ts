@@ -27,7 +27,7 @@ interface MarketPropsInterface {
 // redis client
 const redisClient = createClient({
   socket: {
-    host: 'redis',
+    host: process.env.REDIS_HOST ?? 'localhost',
     port: 6379
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
@@ -38,7 +38,7 @@ redisClient.connect().catch((err) => console.log('Redis redisClient Error', err)
 const postgresClient = new Client(
   {
     user: process.env.POSTGRES_USER ?? 'postgres',
-    host: 'postgres',
+    host: process.env.POSTGRES_HOST ?? 'localhost',
     database: process.env.POSTGRES_DB ?? 'axiebot',
     password: process.env.POSTGRES_PASSWORD ?? 'password',
     port: 5432
@@ -79,7 +79,7 @@ app.use(
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
  */
-app.post('/axiebot/interactions', async (req, res) => {
+app.post('/interactions', async (req, res) => {
   // Interaction type and data
   const { type, id, data } = req.body
   console.log(req.body)
@@ -356,16 +356,16 @@ app.listen(PORT, async () => {
   ])
 })
 
-app.get('/axiebot', async (req, res) => {
-  res.send('hello axiebot!')
+app.get('/', async (req, res) => {
+  res.send('hello discord bot!')
 })
 
-app.get('/axiebot/terms-of-service', (req, res) => {
+app.get('/terms-of-service', (req, res) => {
   // TODO: Add terms of service, discord requires it for the authorized application
   res.send('Terms of Service')
 })
 
-app.get('/axiebot/privacy-policy', (req, res) => {
+app.get('/privacy-policy', (req, res) => {
   // TODO: Add privacy policy, discord requires it for the authorized application
   res.send('Privacy Policy')
 })

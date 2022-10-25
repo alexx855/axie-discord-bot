@@ -1,7 +1,6 @@
 version: '3.7'
 services:
   axiebot:
-    # user: node
     # Overrides default command so things don't shut down after the process ends.
     command: sleep infinity
     volumes:
