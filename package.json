@@ -7,11 +7,15 @@
   "scripts": {
     "start": "npx node-dev app.ts",
     "eslint": "npx eslint . --ext .ts",
-    "accounts": " npx hardhat accounts --network ronin"
+    "accounts": " npx hardhat accounts --network ronin",
+    "main": " npx hardhat run hardhat.main.ts --network ronin",
+    "info": " npx hardhat info --network ronin",
+    "test": " npx hardhat test --network ronin"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.4",
     "@nomicfoundation/hardhat-toolbox": "^2.0.0",
+    "@nomiclabs/hardhat-ethers": "^2.2.0",
     "@types/chai": "^4.3.3",
     "@types/express": "^4.17.14",
     "@types/node": "^18.11.3",

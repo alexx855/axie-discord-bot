@@ -5,67 +5,24 @@ import {
   InteractionResponseType,
   MessageComponentTypes
 } from 'discord-interactions'
-import { VerifyDiscordRequest } from './utils'
-import { GRAPHQL_URL } from './constants'
-import { createClient } from 'redis'
-import { HasGuildCommands, AXIE_COMMAND, ADD_ORDER_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND } from './commands'
-import { Client } from 'pg'
+import {
+  fetchApi,
+  MarketPropsInterface,
+  IMarketOrder,
+  VerifyDiscordRequest,
+  getMarketOrders,
+  setMarketOrders
+} from './utils'
+import {
+  HasGuildCommands,
+  AXIE_COMMAND,
+  ADD_ORDER_COMMAND,
+  GET_ORDERS_COMMAND,
+  REMOVE_ORDER_COMMAND
+} from './commands'
 import * as dotenv from 'dotenv'
+import { ethers } from 'ethers'
 dotenv.config()
-
-interface OrderInterface {
-  date: number
-  userId: string
-  originalMarketProps: string
-  marketProps: any
-  price: number
-}
-
-interface MarketPropsInterface {
-  [key: string]: any
-}
-
-// redis client
-const redisClient = createClient({
-  socket: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: 6379
-  },
-  password: process.env.REDIS_PASSWORD ?? 'password'
-}).on('error', (err) => console.log('Redis redisClient Error', err))
-redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
-
-// postgres client
-const postgresClient = new Client(
-  {
-    user: process.env.POSTGRES_USER ?? 'postgres',
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    database: process.env.POSTGRES_DB ?? 'axiebot',
-    password: process.env.POSTGRES_PASSWORD ?? 'password',
-    port: 5432
-  }
-).on('error', (err) => console.log('Postgres postgresClient Error', err))
-postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
-
-// // test postgress
-// try {
-//   await postgresClient.connect()
-//   const res = await postgresClient.query('SELECT $1::text as message', ['Hello postgres!'])
-//   console.log(res.rows[0].message) // Hello world!
-//   await postgresClient.end()
-// } catch (error) {
-//   console.log(error)
-// }
-
-// // test redis
-// try {
-//   await redisClient.connect()
-//   await redisClient.set('key', 'Hello redis!')
-//   const value = await redisClient.get('key')
-//   console.log(value)
-// } catch (error) {
-//   console.log(error)
-// }
 
 // Create an express app
 const app = express()
@@ -161,21 +118,13 @@ app.post('/interactions', async (req, res) => {
         axieId
       }
 
-      let content = 'Axie not found';
+      let content = 'Axie not found'
 
       try {
-        const response = await fetch(GRAPHQL_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ query, variables })
-        })
+        const dada = await fetchApi(query, variables)
 
-        const data = await response.json()
-
-        if (data?.data?.axie) {
-          const axie = data.data.axie
+        if (dada?.axie) {
+          const axie = data.axie
           content = `
             **${axie.name}**
             Class: ${axie.class}
@@ -184,7 +133,6 @@ app.post('/interactions', async (req, res) => {
             Link: https://marketplace.axieinfinity.com/axie/${axie.id}
           `
         }
-
       } catch (error) {
         console.log(error)
       }
@@ -201,34 +149,22 @@ app.post('/interactions', async (req, res) => {
       // response
       let content = 'There are no orders'
       // Get orders from redis
-      const orders = await redisClient.get('orders')
+      const orders = await getMarketOrders()
 
-      if (orders !== null) {
-        const ordersArray: OrderInterface[] = JSON.parse(orders)
+      if (orders.length > 0) {
+        // console.log((orders[0] as any).marketProps)
 
-        if (ordersArray !== null && ordersArray.length > 0) {
-          console.log((orders[0] as any).marketProps)
-          // {
-          //   class: [ 'Plant' ],
-          //   part: [
-          //     'ears-sakura',
-          //     'mouth-silence-whisper',
-          //     'horn-strawberry-shortcake'
-          //   ],
-          //   auctionTypes: [ 'Sale' ]
-          // }
+        content =
+          content + 'Here is what i have about the open orders:\r\n\r\n'
+        console.log('orders', orders)
 
-          content = content + 'Here is what i have about the open orders:\r\n\r\n'
-          console.log('orders', ordersArray)
-
-          for (const order of ordersArray) {
-            // content = content + 'Order ' + order.date.toString() + '\nPrice: ' + order.price.toString() + ' \n'
-            // add show original props
-            content = content + order.originalMarketProps + '\n'
-            // add a separator line, if not the last order
-            if (order !== ordersArray[ordersArray.length - 1]) {
-              content = content + '------------------------\r\n'
-            }
+        for (const order of orders) {
+          // content = content + 'Order ' + order.date.toString() + '\nPrice: ' + order.price.toString() + ' \n'
+          // add show original props
+          content = content + order.marketUrl + '\n'
+          // add a separator line, if not the last order
+          if (order !== orders[orders.length - 1]) {
+            content = content + '------------------------\r\n'
           }
         }
       }
@@ -242,31 +178,25 @@ app.post('/interactions', async (req, res) => {
       })
     }
 
-    // "test" guild command
     if (name === 'remove_order') {
-      // Get orders date from options value
+      // Get orders date from options value, it's the id of the order, shame on me (┬┬﹏┬┬)
       const orderDate = data.options[0].value as string
-      // return content
-      let content = 'There are no orders'
+      // Default response
+      let content = `Order ${orderDate} not found`
+      // Check if order exists, get current orders list
+      const orders = await getMarketOrders()
       // Check if order exists
-      const orders = await redisClient.get('orders')
-      if (orders !== null) {
-        const ordersArray: OrderInterface[] = JSON.parse(orders)
-        // Check if order exists
-        const orderIndex = ordersArray.findIndex(order => order.date.toString() === orderDate)
-        if (orderIndex !== -1) {
-          // Remove order
-          ordersArray.splice(orderIndex, 1)
-          // Save orders
-          await redisClient.set('orders', JSON.stringify(ordersArray))
-          // Set content
-          content = `Order ${orderDate} removed`
-        } else {
-          // Set content
-          content = `Order ${orderDate} not found`
-        }
+      const orderIndex = orders.findIndex(
+        (order) => order.id.toString() === orderDate
+      )
+      if (orderIndex !== -1) {
+        // Remove the order
+        orders.splice(orderIndex, 1)
+        // Save orders
+        await setMarketOrders(orders)
+        // Set content
+        content = `Order ${orderDate} removed`
       }
-
       // Send a message into the channel where command was triggered from
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -338,16 +268,20 @@ app.post('/interactions', async (req, res) => {
       // Get value of text inputs
       for (const action of data.components) {
         const inputComponent = action.components[0]
-        modalValues += `${inputComponent.custom_id as string}: ${inputComponent.value as string}\n`
+        modalValues += `${inputComponent.custom_id as string}: ${inputComponent.value as string
+          }\n`
       }
 
       // save the order in redis, i'll plan to use pub/sub to notify the bot when a order status changes
       try {
         let marketProps = data.components[0].components[0].value as string
-        const originalMarketProps = marketProps
+        const marketUrl = marketProps
         //  remove marke url (https://app.axieinfinity.com/marketplace/axies/), leave only the props
         // ej: https://app.axieinfinity.com/marketplace/axies/?class=Plant&part=ears-sakura&part=mouth-silence-whisper&part=horn-strawberry-shortcake&auctionTypes=Sale
-        marketProps = marketProps.replace('https://app.axieinfinity.com/marketplace/axies/', '')
+        marketProps = marketProps.replace(
+          'https://app.axieinfinity.com/marketplace/axies/',
+          ''
+        )
         // convert to req params, split ? and &
         const marketPropsArray = marketProps.split('?')[1]?.split('&')
         // check if the props are valid
@@ -361,46 +295,45 @@ app.post('/interactions', async (req, res) => {
         }
 
         // group the same props by key, keep values
-        const marketPropsGrouped: MarketPropsInterface = marketPropsArray.reduce((acc: any, curr) => {
-          const [key, value] = curr.split('=')
-          // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-          if (acc[key]) {
-            acc[key].push(value)
-          } else {
-            acc[key] = [value]
-          }
-          return acc
-        }, {})
+        const marketPropsGrouped: MarketPropsInterface =
+          marketPropsArray.reduce((acc: any, curr) => {
+            const [key, value] = curr.split('=')
+            if (acc[key]) {
+              acc[key].push(value)
+            } else {
+              acc[key] = [value]
+            }
+            return acc
+          }, {})
 
-        console.log('marketPropsGrouped', marketPropsGrouped)
-
-        // get price
-        // TODO: validate price
+        // get and parse trigger price
         const price = data.components[1].components[0].value
+        if (
+          !price ||
+          ethers.utils.parseUnits(price, 'ether').toString() === '0'
+        ) {
+          return res.send({
+            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+            data: {
+              content: 'Invalid price'
+            }
+          })
+        }
 
-        // create the new order
-        const newOrder: OrderInterface = {
-          date: Date.now(),
+        // create the new market order
+        const newOrder: IMarketOrder = {
+          id: Date.now(), // todo: use a real id generator
           userId,
+          marketUrl,
           marketProps: marketPropsGrouped,
-          originalMarketProps,
-          price
+          triggerPrice: price
         }
 
-        let newOrders = []
         // get current orders list
-        const orders = await redisClient.get('orders')
-
-        if (orders !== null) {
-          // parse the orders
-          newOrders = JSON.parse(orders)
-        }
-
-        // add the new order
-        newOrders.push(newOrder)
+        const orders = await getMarketOrders()
 
         // save to redis
-        await redisClient.set('orders', JSON.stringify(newOrders))
+        await setMarketOrders([...orders, newOrder])
       } catch (error) {
         console.log(error)
       }
@@ -408,7 +341,8 @@ app.post('/interactions', async (req, res) => {
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `<@${userId as string}> created the following order:\n\n${modalValues}`
+          content: `<@${userId as string
+            }> created the following order:\n\n${modalValues}`
         }
       })
     }
@@ -433,7 +367,6 @@ app.listen(PORT, async () => {
     REMOVE_ORDER_COMMAND,
     ADD_ORDER_COMMAND
   ])
-
 })
 
 app.get('/', async (req, res) => {
