@@ -1,192 +1,155 @@
-import { CONTRACT_MARKETPLACE_V2_ADDRESS, CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, CONTRACT_AXIE_ADDRESS, CONTRACT_AXIE_ABI_JSON_PATH } from './constants'
+import {
+  CONTRACT_AXIE_ADDRESS,
+  CONTRACT_AXIE_ABI_JSON_PATH,
+  CONTRACT_MARKETPLACE_V2_ADDRESS,
+  CONTRACT_WETH_ADDRESS,
+  CONTRACT_WETH_ABI_JSON_PATH,
+  CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH
+} from './constants'
 import { HardhatUserConfig, task } from 'hardhat/config'
-import '@nomicfoundation/hardhat-toolbox'
-import * as fs from 'fs/promises';
+import '@nomiclabs/hardhat-ethers'
+import * as fs from 'fs/promises'
+
 import * as dotenv from 'dotenv'
+import { fetchApi } from './utils'
 dotenv.config()
 
-// This is a sample Hardhat task. To learn how to create your own go to
-// https://hardhat.org/guides/create-task.html
-task('info', 'Get info of the deployer account', async (taskArgs, hre) => {
-  try {
-    const accounts = await hre.ethers.getSigners()
-    const account = accounts[0].address
-    // get block number
-    const blockNumber = await hre.ethers.provider.getBlockNumber()
-    console.log('blockNumber', blockNumber)
-    // get account balance
-    const balance = await hre.ethers.provider.getBalance(account)
-    // convert balance to ether
-    const balanceInEther = hre.ethers.utils.formatEther(balance)
-    console.log('balance', balanceInEther)
-    // get axie contract
-    const axieAbi = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
-    const axieContract = await hre.ethers.getContractAt(axieAbi, CONTRACT_AXIE_ADDRESS)
-    console.log('axieContract', axieContract.address)
-    // get axies balance for account
-    const axiesBalance = await axieContract.balanceOf(account)
-    console.log('axiesBalance', hre.ethers.BigNumber.from(axiesBalance).toNumber())
-  } catch (error) {
-    console.error(error)
-  }
-})
+export interface Asset {
+  [key: string]: any
+}
 
-// This is a sample Hardhat task. To learn how to create your own go to
-// https://hardhat.org/guides/create-task.html
-task('test', 'testing market trasaction', async (taskArgs, hre) => {
-  try {
-    const accounts = await hre.ethers.getSigners()
-    const owner = accounts[0].address
-
-    // get axie contract
-    const axieContractInterface = await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')
-    const axieContract = new hre.ethers.Contract(CONTRACT_AXIE_ADDRESS, axieContractInterface, hre.ethers.provider)
-
-    // get axies balance for owner
-    const axiesBalance = await axieContract.balanceOf(owner)
-
-    // check if the owner has given approval to the marketplace contract to transfer the axie
-    const isApproved = await axieContract.isApprovedForAll(owner, CONTRACT_MARKETPLACE_V2_ADDRESS)
-    console.log('isApproved', isApproved)
-
-    if (!isApproved) {
-      return console.log('Please approve the marketplace contract to transfer the axie');
-    }
-
-    // const bidPrice = ethers.utils.parseEther('1')
-    // const askPrice = ethers.utils.parseEther('1')
-
-    // console.log(await provider.getBlockNumber());
-    // provider.on("block", (blockNumber) => console.log("new block number " + blockNumber));
-
-    // get marketplace contract
-    const marketplaceContractInterface = await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8')
-    const marketplaceContract = new hre.ethers.Contract(CONTRACT_MARKETPLACE_V2_ADDRESS, marketplaceContractInterface, hre.ethers.provider)
-
-    // Create Axie Auction
-    // data to sign
-    const axieId = "11481869"
-    const data = {
-      "types": {
-        "Asset": [
-          {
-            "name": "erc",
-            "type": "uint8"
-          },
-          {
-            "name": "addr",
-            "type": "address"
-          },
-          {
-            "name": "id",
-            "type": "uint256"
-          },
-          {
-            "name": "quantity",
-            "type": "uint256"
-          }
-        ],
-        "Order": [
-          {
-            "name": "maker",
-            "type": "address"
-          },
-          {
-            "name": "kind",
-            "type": "uint8"
-          },
-          {
-            "name": "assets",
-            "type": "Asset[]"
-          },
-          {
-            "name": "expiredAt",
-            "type": "uint256"
-          },
-          {
-            "name": "paymentToken",
-            "type": "address"
-          },
-          {
-            "name": "startedAt",
-            "type": "uint256"
-          },
-          {
-            "name": "basePrice",
-            "type": "uint256"
-          },
-          {
-            "name": "endedAt",
-            "type": "uint256"
-          },
-          {
-            "name": "endedPrice",
-            "type": "uint256"
-          },
-          {
-            "name": "expectedState",
-            "type": "uint256"
-          },
-          {
-            "name": "nonce",
-            "type": "uint256"
-          },
-          {
-            "name": "marketFeePercentage",
-            "type": "uint256"
-          }
-        ],
-        "EIP712Domain": [
-          {
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "name": "version",
-            "type": "string"
-          },
-          {
-            "name": "chainId",
-            "type": "uint256"
-          },
-          {
-            "name": "verifyingContract",
-            "type": "address"
-          }
-        ]
-      },
-      "domain": {
-        "name": "MarketGateway",
-        "version": "1",
-        "chainId": "2020",
-        "verifyingContract": "0xfff9ce5f71ca6178d3beecedb61e7eff1602950e"
-      },
-      "primaryType": "Order",
-      "message": {
-        "maker": "0x00c294859fcf61826d858f349697764864339ff7",
-        "kind": "1",
-        "assets": [
-          {
-            "erc": "1",
-            "addr": "0x32950db2a7164ae833121501c797d79e7b79d74c",
-            "id": "11481869",
-            "quantity": "0"
-          }
-        ],
-        "expiredAt": "1682427123",
-        "paymentToken": "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
-        "startedAt": "1666702323",
-        "basePrice": "500000000000000000",
-        "endedAt": "0",
-        "endedPrice": "0",
-        "expectedState": "0",
-        "nonce": "0",
-        "marketFeePercentage": "425"
+task('buy', 'Buy and axie from the marketplace')
+  .addParam('axie', 'The axie ID without #')
+  .setAction(async (taskArgs: { axie: string }, hre) => {
+    const { ethers } = hre
+    try {
+      // "sell": " npx hardhat sell --axie 11537896 --fromPrice 0.2 --price 0.1 --duration 1"
+      // const gasPrice = json_data['gasPrice']
+      const axieId = parseInt(taskArgs.axie, 10)
+      if (isNaN(axieId) || axieId <= 0) {
+        throw new Error('Invalid Axie ID provided')
       }
-    }
-    // create the order on the marketplace by signing a tx, using the InteractWith action in the marketplaceContract
-    // marketplaceContract.interactWith('ORDER_EXCHANGE', data)
 
+      const accounts = await ethers.getSigners()
+      const account = accounts[0].address
+      // const signer = accounts[0]
+      // accessToken = AccessToken.GenerateAccessToken(key, address)
+
+      // get axie contract
+      const axieContract = await ethers.getContractAt(
+        JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')),
+        CONTRACT_AXIE_ADDRESS
+      )
+
+      // check if the account has given approval to the marketplace contract to transfer the axie
+      const isApproved: boolean = await axieContract.isApprovedForAll(account, CONTRACT_MARKETPLACE_V2_ADDRESS)
+      if (!isApproved) {
+        throw new Error('Please approve the marketplace contract to transfer the axie')
+      }
+
+      // get marketplace contract
+      const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
+      const marketplaceContract = await ethers.getContractAt(
+        marketAbi,
+        CONTRACT_MARKETPLACE_V2_ADDRESS
+      )
+
+      // query the marketplace for the axie order, rm this just for testing
+      const query = 'query GetAxieDetail($axieId: ID!){ axie(axieId: $axieId){id,order{...on Order{id,maker,kind,assets{...on Asset{erc,address,id,quantity,orderId}}expiredAt,paymentToken,startedAt,basePrice,endedAt,endedPrice,expectedState,nonce,marketFeePercentage,signature,hash,duration,timeLeft,currentPrice,suggestedPrice,currentPriceUsd}}}}'
+      const variables = {
+        axieId
+      }
+      const result: any = await fetchApi(query, variables)
+      // console.log(result)
+
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (!result.axie) {
+        throw new Error('Axie not found')
+      }
+
+      const order = result.axie.order
+
+      // get account balance
+      const balance = await ethers.provider.getBalance(account)
+      const currentPrice = ethers.BigNumber.from(order.currentPrice)
+      // check if have enough balance
+      if (currentPrice.gte(balance)) {
+        throw new Error('Not enough balance')
+      }
+
+      // get weth contract
+      const wethContract = await ethers.getContractAt(
+        JSON.parse(await fs.readFile(CONTRACT_WETH_ABI_JSON_PATH, 'utf8')),
+        CONTRACT_WETH_ADDRESS
+      )
+
+      // approve WETH Contract to transfer WETH from the account
+      const amountToapproved = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+      const txApproveWETH = await wethContract.approve(account, amountToapproved)
+      console.log('txApproveWETH', txApproveWETH.hash)
+
+      const allowance = await wethContract.allowance(account, CONTRACT_MARKETPLACE_V2_ADDRESS)
+      // console.log('allowance', allowance)
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (!allowance.gte(currentPrice)) {
+        throw new Error('Please approve the marketplace contract to transfer WETH')
+      }
+
+      // buy the axie
+      const settleOrderData = marketplaceContract.interface.encodeFunctionData('settleOrder',
+        [
+          0,
+          order.currentPrice,
+          account,
+          order.signature,
+          [
+            order.maker,
+            1,
+            [[
+              1,
+              order.assets[0].address,
+              order.assets[0].id,
+              order.assets[0].quantity
+            ]],
+            order.expiredAt,
+            CONTRACT_WETH_ADDRESS,
+            order.startedAt,
+            order.basePrice,
+            order.endedAt,
+            order.endedPrice,
+            0,
+            order.nonce,
+            425
+          ]
+        ]
+      )
+
+      const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
+      console.log('txBuyAxie hash ', txBuyAxie.hash)
+    } catch (error) {
+      console.error(error)
+    }
+  })
+
+task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
+  const { ethers } = hre
+  try {
+    const accounts = await ethers.getSigners()
+    const account = accounts[0].address
+    // get account balance
+    const balance = await ethers.provider.getBalance(account)
+    // convert balance to ether
+    const balanceInEther = ethers.utils.formatEther(balance)
+    console.log('balance', balanceInEther)
+
+    // get axie contract
+    const axieContract = await ethers.getContractAt(
+      JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')),
+      CONTRACT_AXIE_ADDRESS
+    )
+    // get axies balance for the account
+    const axiesBalance = await axieContract.balanceOf(account)
+    console.log('axies: ', ethers.BigNumber.from(axiesBalance).toNumber())
   } catch (error) {
     console.error(error)
   }
@@ -197,13 +160,13 @@ task('test', 'testing market trasaction', async (taskArgs, hre) => {
 const config: HardhatUserConfig = {
   defaultNetwork: 'ronin',
   networks: {
-    // hardhat: {
-    //   chainId: 1337
-    // },
+    hardhat: {
+      chainId: 1337
+    },
     ronin: {
       chainId: 2020,
-      url: process.env.RONIN_NETWORK_URL || 'https://api.roninchain.com/rpc',
-      accounts: [process.env.PRIVATE_KEY || ''],
+      url: process.env.RONIN_NETWORK_URL ?? 'https://api.roninchain.com/rpc',
+      accounts: [process.env.PRIVATE_KEY ?? '']
     }
   },
   solidity: {
@@ -221,7 +184,7 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 600000
-  },
+  }
 }
 
 export default config

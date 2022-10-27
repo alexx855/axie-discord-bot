@@ -4,6 +4,9 @@ export const CONTRACT_AXIE_ABI_JSON_PATH = 'abis/axie.json'
 export const CONTRACT_SLP_ADDRESS = '0xa8754b9fa15fc18bb59458815510e40a12cd2014'
 export const CONTRACT_SLP_ABI_JSON_PATH = 'abis/slp.json'
 
+export const CONTRACT_WETH_ADDRESS = '0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5'
+export const CONTRACT_WETH_ABI_JSON_PATH = 'abis/weth.json'
+
 export const CONTRACT_AXS_ADDRESS = '0x97a9107c1793bc407d6f527b77e7fff4d812bece'
 export const CONTRACT_AXS_ABI_JSON_PATH = 'abis/axs.json'
 
