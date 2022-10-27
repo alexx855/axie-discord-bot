@@ -15,10 +15,10 @@ services:
       - redis
   postgres:
     image: postgres:alpine
-    ports:
-      - target: 5432
-        published: 5432
-        protocol: tcp
+    # ports:
+    #   - target: 5432
+    #     published: 5432
+    #     protocol: tcp
     environment:
       POSTGRES_USER: ${POSTGRES_USER-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD-password}
@@ -30,7 +30,7 @@ services:
     command: /bin/sh -c "redis-server --requirepass ${REDIS_PASSWORD-password}"
     volumes:
       - ./data-redis:/data
-    ports:
-      - target: 6379
-        published: 6379
-        protocol: tcp
+    # ports:
+    #   - target: 6379
+    #     published: 6379
+    #     protocol: tcp
