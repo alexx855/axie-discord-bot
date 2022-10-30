@@ -298,7 +298,7 @@ app.listen(PORT, async () => {
 
   // track time, some blocks came almost at the same time
   let time = Date.now()
-  const onBlockFetch = async (blockNumber: number): Promise<void> => {
+  const onBlock = async (blockNumber: number): Promise<void> => {
     try {
       const diff = Date.now() - time
       time = Date.now()
@@ -331,21 +331,20 @@ app.listen(PORT, async () => {
             console.log(`order too old, skip it (${orderTimeDiff}ms)`)
             continue
           }
+
           if (results.length > 0) {
-            console.log('  results', results)
+            // get only the first order, it should be the chepeast one
+            const order = results[0]
 
             // remove the market order from the orders array, to prevent it from being executed again
             await removeMarketOrder(marketOrder.id)
 
-            // get only the first order, it should be the chepeast one
-            const order = results[0]
             // call the hardhart task buy the, with the order as argument
-            const tx = await run('buy', { order })
-            console.log('tx', tx)
+            const tx = await run('buy', { order: JSON.stringify(order) })
             const txLink = `https://explorer.roninchain.com/tx/${tx as string}`
 
-            // todo: validate that we're the owners of the axie now, with a rpc call to the contract
-            // todo: generate and send an img of the axie
+            // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
+            // ?? todo: validate that we're the owners of the axie now, with a rpc call to the contract
 
             // send a message to the channel
             const endpoint = `/channels/${process.env.BOT_CHANNEL_ID as string}/messages`
@@ -354,7 +353,7 @@ app.listen(PORT, async () => {
               body:
               {
                 embeds: [{
-                  title: `Market order ${marketOrder.id} completed`,
+                  title: `Market order ${marketOrder.id} triggered`,
                   description: txLink
                 }]
               }
@@ -369,7 +368,7 @@ app.listen(PORT, async () => {
     }
   }
 
-  provider.on('block', onBlockFetch)
+  provider.on('block', onBlock)
 })
 
 app.get('/', async (req, res) => {

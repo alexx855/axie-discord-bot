@@ -20,10 +20,11 @@ export interface Asset {
 }
 
 task('buy', 'Buy and axie from the marketplace')
-  .addParam('axie', 'The axie ID without #')
-  .setAction(async (taskArgs: { order: ITriggerOrder }, hre) => {
+  .addParam('order', 'The trigger order object to trigger')
+  .setAction(async (taskArgs: { order: string }, hre) => {
     try {
-      const { order } = taskArgs
+      const order: ITriggerOrder = JSON.parse(taskArgs.order)
+      console.log('order', order)
       const axieId = parseInt(order.axieId, 10)
       if (isNaN(axieId) || axieId <= 0) {
         throw new Error('Invalid Axie ID provided')
@@ -64,16 +65,14 @@ task('buy', 'Buy and axie from the marketplace')
         CONTRACT_WETH_ADDRESS
       )
       const allowance: BigNumber = await wethContract.allowance(account, CONTRACT_MARKETPLACE_V2_ADDRESS)
-      console.log('WETH Allowance ', allowance.toString())
+      // console.log('WETH Allowance ', allowance.toString())
       if (!allowance.gte(0)) {
         // same amount as the ronin wallet approval, got it from there
         const amountToapproved = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
         const txApproveWETH = await wethContract.approve(account, amountToapproved)
         console.log('txApproveWETH', txApproveWETH.hash)
 
-        if (!allowance.gte(0)) {
-          throw new Error('Need approve the marketplace contract to transfer WETH, no allowance')
-        }
+        throw new Error('Need approve the marketplace contract to transfer WETH, no allowance')
       }
 
       // create the order data
@@ -106,7 +105,7 @@ task('buy', 'Buy and axie from the marketplace')
       )
 
       const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
-      console.log('txBuyAxie', txBuyAxie)
+      // console.log('txBuyAxie', txBuyAxie)
       return txBuyAxie.hash
     } catch (error) {
       console.error(error)
