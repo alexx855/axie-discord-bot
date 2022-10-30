@@ -11,7 +11,10 @@ import {
   IMarketOrder,
   VerifyDiscordRequest,
   getMarketOrders,
-  setMarketOrders
+  setMarketOrders,
+  fetchMarketResultsByOrder,
+  removeMarketOrder,
+  addMarketOrder
 } from './utils'
 import {
   HasGuildCommands,
@@ -20,9 +23,23 @@ import {
   GET_ORDERS_COMMAND,
   REMOVE_ORDER_COMMAND
 } from './commands'
-import * as dotenv from 'dotenv'
+import * as fs from 'fs/promises'
+
+import { CONTRACT_AXIE_ABI_JSON_PATH, CONTRACT_AXIE_ADDRESS } from './constants'
+// import { ethers } from 'ethers'
+// import config from './hardhat.config'
 import { ethers } from 'ethers'
+import { run, userConfig } from 'hardhat'
+
+import * as dotenv from 'dotenv'
 dotenv.config()
+
+const networks = userConfig.networks as any
+const url = networks?.ronin?.url as string
+const provider = new ethers.providers.JsonRpcProvider(
+  url,
+  networks?.ronin?.chainId
+)
 
 // Create an express app
 const app = express()
@@ -39,9 +56,7 @@ app.use(
  */
 app.post('/interactions', async (req, res) => {
   // Interaction type and data
-  const { type, id, data } = req.body
-  // console.log(req.body)
-  // console.log('Interaction ID:', id)
+  const { type, data } = req.body
 
   /**
    * Handle verification requests
@@ -56,110 +71,28 @@ app.post('/interactions', async (req, res) => {
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data
+    console.log(data)
+    // const userId = data.member.user.id
     console.log('Command name:', name)
 
-    if (name === 'axie') {
-      // Send a message into the channel where command was triggered from
-      const axieId = data.options[0].value as string
-
-      // Send a simple query to the graphql api to get the axie data
-      const query = `
-        query GetAxieDetail($axieId: ID!) {
-          axie(axieId: $axieId) {
-            id
-            name
-            owner
-            genes
-            class
-            breedCount
-            parts {
-                id
-                name
-                class
-                type
-            }
-            stats {
-                hp
-                speed
-                skill
-                morale
-            }
-            auction {
-                startingPrice
-                endingPrice
-                startingTimestamp
-                endingTimestamp
-                duration
-                timeLeft
-                currentPrice
-                currentPriceUSD
-                suggestedPrice
-                seller
-                listingIndex
-                state
-            }
-            ownerProfile {
-                name
-            }
-            battleInfo {
-                banned
-                banUntil
-                level
-            }
-            children {
-                id
-                name
-                class
-            }
-          }
-        }
-      `
-      const variables = {
-        axieId
-      }
-
-      let content = 'Axie not found'
-
-      try {
-        const dada = await fetchApi(query, variables)
-
-        if (dada?.axie) {
-          const axie = data.axie
-          content = `
-            **${axie.name}**
-            Class: ${axie.class}
-            Owner: ${axie.ownerProfile?.name ?? axie.owner}
-            Price: ${axie.auction?.currentPriceUSD ?? 'Not for sale'}
-            Link: https://marketplace.axieinfinity.com/axie/${axie.id}
-          `
-        }
-      } catch (error) {
-        console.log(error)
-      }
-
-      return res.send({
-        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-        data: {
-          content
-        }
-      })
-    }
+    // data.guild_id
 
     if (name === 'get_orders') {
-      // response
-      let content = 'There are no orders'
+      const userId: string = req.body.member.user.id
+
+      // todo: validate user id, it should be admin
+      console.log('User ID:', userId)
+
       // Get orders from redis
       const orders = await getMarketOrders()
+      let content = ''
 
       if (orders.length > 0) {
-        // console.log((orders[0] as any).marketProps)
-
-        content =
-          content + 'Here is what i have about the open orders:\r\n\r\n'
         console.log('orders', orders)
+        content = `<@${userId}> has the following open order${orders.length > 1 ? 's' : ''} :\r\n`
 
         for (const order of orders) {
-          // content = content + 'Order ' + order.date.toString() + '\nPrice: ' + order.price.toString() + ' \n'
+          content = content + 'Order ' + order.id.toString() + '\nTrigger price: ' + order.triggerPrice.toString() + ' \n'
           // add show original props
           content = content + order.marketUrl + '\n'
           // add a separator line, if not the last order
@@ -167,6 +100,8 @@ app.post('/interactions', async (req, res) => {
             content = content + '------------------------\r\n'
           }
         }
+      } else {
+        content = `<@${userId}> you have no orders.\nUse **/add_order** to add one.`
       }
 
       // Send a message into the channel where command was triggered from
@@ -207,6 +142,8 @@ app.post('/interactions', async (req, res) => {
     }
 
     if (data.name === 'add_order') {
+      // todo: check if user can add order
+
       // Send a modal as response
       return res.send({
         type: InteractionResponseType.APPLICATION_MODAL,
@@ -272,33 +209,21 @@ app.post('/interactions', async (req, res) => {
           }\n`
       }
 
-      // save the order in redis, i'll plan to use pub/sub to notify the bot when a order status changes
-      try {
-        let marketProps = data.components[0].components[0].value as string
-        const marketUrl = marketProps
-        //  remove marke url (https://app.axieinfinity.com/marketplace/axies/), leave only the props
-        // ej: https://app.axieinfinity.com/marketplace/axies/?class=Plant&part=ears-sakura&part=mouth-silence-whisper&part=horn-strawberry-shortcake&auctionTypes=Sale
-        marketProps = marketProps.replace(
-          'https://app.axieinfinity.com/marketplace/axies/',
-          ''
-        )
-        // convert to req params, split ? and &
-        const marketPropsArray = marketProps.split('?')[1]?.split('&')
-        // check if the props are valid
-        if (marketPropsArray.length === 0) {
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: 'Invalid market props'
-            }
-          })
-        }
+      // get market props from modal, it's the market url ej: https://app.axieinfinity.com/marketplace/axies/?class=Plant&part=ears-sakura&part=mouth-silence-whisper&part=horn-strawberry-shortcake&auctionTypes=Sale
+      const marketPropsFromModal = data.components[0].components[0].value as string
+      const marketUrl = marketPropsFromModal
+      // convert to params, split ? and &
+      const marketPropsArray = marketPropsFromModal.replace(
+        'https://app.axieinfinity.com/marketplace/axies/',
+        ''
+      ).split('?')[1]?.split('&')
 
-        // group the same props by key, keep values
-        const marketPropsGrouped: MarketPropsInterface =
+      // group the same props by key, keep values
+      const marketPropsGrouped: MarketPropsInterface =
           marketPropsArray.reduce((acc: any, curr) => {
             const [key, value] = curr.split('=')
-            if (acc[key]) {
+            // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+            if (acc[key] && !acc[key].includes(value)) {
               acc[key].push(value)
             } else {
               acc[key] = [value]
@@ -306,34 +231,40 @@ app.post('/interactions', async (req, res) => {
             return acc
           }, {})
 
-        // get and parse trigger price
-        const price = data.components[1].components[0].value
-        if (
-          !price ||
-          ethers.utils.parseUnits(price, 'ether').toString() === '0'
-        ) {
-          return res.send({
-            type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-            data: {
-              content: 'Invalid price'
-            }
-          })
-        }
+      // // todo: check if the props are valid, create interface for props
+      // if (marketPropsArray.length === 0) {
+      //   return res.send({
+      //     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+      //     data: {
+      //       content: 'Invalid market props'
+      //     }
+      //   })
+      // }
 
-        // create the new market order
-        const newOrder: IMarketOrder = {
-          id: Date.now(), // todo: use a real id generator
-          userId,
-          marketUrl,
-          marketProps: marketPropsGrouped,
-          triggerPrice: price
-        }
+      // get and parse trigger price
+      const priceFromModal = ethers.utils.parseUnits(data.components[1].components[0].value, 'ether')
+      // todo: validate price
+      if (!priceFromModal._isBigNumber) {
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: 'Invalid price'
+          }
+        })
+      }
 
-        // get current orders list
-        const orders = await getMarketOrders()
+      // create the new market order
+      const newOrder: IMarketOrder = {
+        id: Date.now(), // todo: use a real id generator
+        userId,
+        marketUrl,
+        marketProps: marketPropsGrouped,
+        triggerPrice: ethers.utils.formatEther(priceFromModal)
+      }
 
-        // save to redis
-        await setMarketOrders([...orders, newOrder])
+      // save to redis
+      try {
+        await addMarketOrder(newOrder)
       } catch (error) {
         console.log(error)
       }
@@ -367,6 +298,77 @@ app.listen(PORT, async () => {
     REMOVE_ORDER_COMMAND,
     ADD_ORDER_COMMAND
   ])
+
+  // get first account from the network list, ref: hardhat.config.ts
+  const wallet = new ethers.Wallet(networks.ronin.accounts[0], provider)
+  const address = await wallet.getAddress()
+  // get account balance
+  const balance = await provider.getBalance(address)
+  const balanceInEther = ethers.utils.formatEther(balance)
+  console.log(`RON balance: ${balanceInEther}`)
+
+  // track time, some blocks came almost at the same time
+  let time = Date.now()
+  const onBlockFetch = async (blockNumber: number): Promise<void> => {
+    try {
+      const diff = Date.now() - time
+      time = Date.now()
+
+      // we got two block at the same time, skip this one
+      if (diff <= 1000) {
+        return
+      }
+
+      // todo: add env var to enable/disable this dev logs
+      console.log(`new block ${blockNumber} received after ${diff}ms`)
+
+      // get orders from redis
+      const marketOrders = await getMarketOrders()
+
+      if (marketOrders.length > 0) {
+        for (let i = 0; i < marketOrders.length; i++) {
+          const marketOrder = marketOrders[i]
+          // console.log('marketOrder', marketOrder)
+          console.log(`checking order ${marketOrder.id} for user ${marketOrder.userId}`)
+
+          // track order time
+          const orderTime = Date.now()
+          // get orders matches from Axies listing based on the given order
+          const results = await fetchMarketResultsByOrder(marketOrder)
+
+          // check time, if the order is older than 3 seconds, skip it
+          const orderTimeDiff = Date.now() - orderTime
+          if (orderTimeDiff > 3000) {
+            console.log(`order too old, skip it (${orderTimeDiff}ms)`)
+            continue
+          }
+          if (results.length > 0) {
+            console.log('  results', results)
+
+            // remove the market order from the orders array, to prevent it from being executed again
+            await removeMarketOrder(marketOrder.id)
+
+            // // get only the first order, it should be the chepeast one
+            const order = results[0]
+            // // call the hardhart task buy the, with the order as argument
+            const tx = await run('buy', { order })
+            console.log('tx', tx)
+            // const txLink = `https://explorer.roninchain.com/tx/${tx}`
+
+            // send a message to the user/channel who created the order with the tx link
+            // todo: validate that we're the owners of the axie, with a rpc call to the contract
+            // todo: retry 4 secs after the order is created, if the tx is not mined
+          }
+        }
+      }
+
+      // todo: get latest sales from api and save it to postgres
+    } catch (error) {
+      console.log(error)
+    }
+  }
+
+  provider.on('block', onBlockFetch)
 })
 
 app.get('/', async (req, res) => {

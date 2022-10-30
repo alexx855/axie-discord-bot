@@ -38,14 +38,15 @@ async function HasGuildCommand (
         InstallGuildCommand(appId, guildId, command).catch((err) => {
           console.error('Error installing command:', err)
         })
-      } else {
-        console.log(`"${command.name}" command already installed`)
-        // Update command
-        const commandId = data.find((c: any) => c.name === command.name).id
-        UpdateGuildCommand(appId, guildId, commandId, command).catch((err) => {
-          console.error('Error updating command:', err)
-        })
-      }
+      } 
+      // else {
+      //   console.log(`"${command.name}" command already installed`)
+      //   // Update command
+      //   const commandId = data.find((c: any) => c.name === command.name).id
+      //   UpdateGuildCommand(appId, guildId, commandId, command).catch((err) => {
+      //     console.error('Error updating command:', err)
+      //   })
+      // }
     }
   } catch (err) {
     console.error(err)
@@ -89,6 +90,22 @@ export async function InstallGuildCommand (
     console.error(err)
   }
 }
+
+// // Run the guild command
+// export async function runGuildCommand (
+//   appId: any,
+//   guildId: any,
+//   command: any
+// ): Promise<void> {
+//   // API endpoint to get and post guild commands
+//   const endpoint = `applications/${appId}/guilds/${guildId}/commands`
+//   // install command
+//   try {
+//     await DiscordRequest(endpoint, { method: 'POST', body: command })
+//   } catch (err) {
+//     console.error(err)
+//   }
+// }
 
 // Command that returns custom axie data, like estimated price
 export const AXIE_COMMAND = {

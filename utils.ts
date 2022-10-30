@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import * as dotenv from 'dotenv'
 
 import { verifyKey } from 'discord-interactions'
@@ -17,7 +16,7 @@ export const redisClient = createClient({
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
 }).on('error', (err) => console.log('Redis redisClient Error', err))
-// redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
+redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
 
 // postgres client
 export const postgresClient = new Client(
@@ -29,7 +28,7 @@ export const postgresClient = new Client(
     port: 5432
   }
 ).on('error', (err) => console.log('Postgres postgresClient Error', err))
-// postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
+postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export interface IMarketOrder {
   id: number
@@ -37,23 +36,34 @@ export interface IMarketOrder {
   marketProps: MarketPropsInterface
   marketUrl: string
   triggerPrice: string
+  floorPrice?: string
+}
+export interface IAsset {
+  [key: string]: any
 }
 
 export interface ITriggerOrder {
   id: number
   axieId: string
-  marketProps: MarketPropsInterface
+  maker: string
+  assets: IAsset[]
+  basePrice: string
   triggerPrice: string
   currentPrice: string
-  status: 'pending' | 'triggered' | 'failed' | 'completed'
+  endedAt: string
+  endedPrice: string
+  expiredAt: string
+  startedAt: string
+  nonce: string
+  signature: string
 }
 
 export interface MarketPropsInterface {
   class: string[]
   part: string[]
   triggerPrice: string
-  breedCount: number
-  pureness: number
+  breedCount: string[]
+  pureness: string[]
   // [key: string]: any
 }
 
@@ -74,7 +84,7 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
   // Stringify payloads
-  if (options?.body) options.body = JSON.stringify(options.body)
+  if (options?.body.length > 0) options.body = JSON.stringify(options.body)
   // Use node-fetch to make requests
   const res = await fetch(url, {
     headers: {
@@ -106,58 +116,148 @@ export async function fetchApi(query: string, variables: { [key: string]: any })
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-        // 'Authorization': 'Bearer ' + accessToken,
-        // 'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)',
+        // Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY3ODA5MzIwLCJpYXQiOjE2NjY1OTk3MjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.eHk_QteNfGH4RiZGIm52V8_JFTMiOt5Ion4bixIVLLs',
+        // 'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)'
       },
       body: JSON.stringify({ query, variables })
     })
 
     const res = await response.json()
     // todo: handle errors
-    return res.data
+    return res
   } catch (error) {
     return error
   }
 }
 
-export async function fetchMarketResultsByCriteria(marketProps: MarketPropsInterface): Promise<ITriggerOrder[]> {
-  const orders: ITriggerOrder[] = []
-  const query = 'query GetAxieBriefList($auctionType:AuctionType,$criteria:AxieSearchCriteria,$from:Int,$sort:SortBy,$size:Int,$owner:String){axies(auctionType:$auctionType,criteria:$criteria,from:$from,sort:$sort,size:$size,owner:$owner,){total,results{id,order{...on Order{id,maker,kind,assets{...on Asset{erc,address,id,quantity,orderId}}expiredAt,paymentToken,startedAt,basePrice,endedAt,endedPrice,expectedState,nonce,marketFeePercentage,signature,hash,duration,timeLeft,currentPrice,suggestedPrice,currentPriceUsd}}}}}'
+interface Criteria {
+  classes?: string[];
+  parts?: string[];
+  breedCount?: number[];
+  pureness?: number[];
+}
 
+export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Promise<ITriggerOrder[]> {
+  // console.log('fetchMarketResultsByOrder', marketOrder)
+  const marketProps = marketOrder.marketProps
+  const orders: ITriggerOrder[] = []
+  const query = `
+    query GetAxieBriefList(
+      $auctionType: AuctionType
+      $criteria: AxieSearchCriteria
+      $from: Int
+      $sort: SortBy
+      $size: Int
+      $owner: String
+    ) {
+      axies(
+        auctionType: $auctionType
+        criteria: $criteria
+        from: $from
+        sort: $sort
+        size: $size
+        owner: $owner
+      ) {
+        total
+        results {
+          id
+          order {
+            ... on Order {
+              id
+              maker
+              kind
+              assets {
+                ... on Asset {
+                  erc
+                  address
+                  id
+                  quantity
+                  orderId
+                }
+              }
+              expiredAt
+              paymentToken
+              startedAt
+              basePrice
+              endedAt
+              endedPrice
+              expectedState
+              nonce
+              marketFeePercentage
+              signature
+              hash
+              duration
+              timeLeft
+              currentPrice
+              suggestedPrice
+              currentPriceUsd
+            }
+          }
+        }
+      }
+    }
+  `
+  const criteria: Criteria = {}
   const variables = {
     from: 0,
-    size: 100,
+    size: 10, // total of results, max 100
     sort: 'PriceAsc',
     auctionType: 'Sale',
-    criteria: {
-      classes: marketProps.class,
-      parts: marketProps.part,
-      breedCount: marketProps.breedCount,
-      pureness: marketProps.pureness
-      // ...criteria
-      // todo: add the rest of the criteria
-    }
+    criteria
+  }
+
+  // validate the marketProps, not the same as the graphql criteria
+  if (marketProps.class?.length > 0) {
+    criteria.classes = marketProps.class
+  }
+
+  if (marketProps.part?.length > 0) {
+    criteria.parts = marketProps.part
+  }
+
+  if (marketProps.breedCount?.length > 0 && marketProps.breedCount?.length > 0) {
+    // convert strings in the array to numbers
+    criteria.breedCount = marketProps.breedCount.map((item) => parseInt(item, 10))
+  }
+
+  if (marketProps.pureness?.length > 0) {
+    // convert strings in the array to numbers
+    criteria.pureness = marketProps.pureness.map((item) => parseInt(item, 10))
   }
 
   // get results from the market
-  const response = await fetchApi(query, variables)
-  const results = response.axies.results
-  if (results) {
-    const total = response.axies.total
+  const res = await fetchApi(query, variables)
+  // console.log('res', res)
+  if (res.data?.axies?.total > 0) {
+    // const total = res.data.axies.total
+    // console.log('total', total)
 
-    // if there are more than 100, interate over the pages
-    while (total > results.length) {
-      variables.from += 100
-      const response = await fetchApi(query, variables)
-      results.push(...response.axies.results)
-      // await some time to avoid rate limit
-      await new Promise(resolve => setTimeout(resolve, 1000))
+    // todo: re enable
+    // // if there are more than 100, interate over the pages
+    // while (total > results.length) {
+    //   variables.from += 100
+    //   const res = await fetchApi(query, variables)
+    //   results.push(...res.axies.results)
+    //   // await some time to avoid rate limit
+    //   await new Promise(resolve => setTimeout(resolve, 1000))
+    // }
+
+    // save floor price
+    const floorPrice = ethers.utils.formatEther(res.data.axies.results[0].order.currentPrice)
+    // if floor price different than the one in the database, update it
+    if (floorPrice !== marketOrder.floorPrice) {
+      console.log(`  new floor price ${floorPrice}`)
+      // todo: send a message to notify the floor price
+      marketOrder.floorPrice = floorPrice
+      void updateMarketOrderFloorPrice(marketOrder)
     }
 
     // process the results and check if some meet the market criteria
-    for (const result of results) {
-      const orderId = result.order.id
-      const axieId = result.order.assets[0].id as string
+    for (const result of res.data.axies.results) {
+      const { order } = result
+      const axieId = order.assets[0].id as string
+      const currentPrice = ethers.BigNumber.from(order.currentPrice)
+      const triggerPrice = ethers.BigNumber.from(ethers.utils.parseUnits(marketOrder.triggerPrice, 'ether'))
       // const expiredAt = result.order.expiredAt;
       // const startedAt = result.order.startedAt;
       // const basePrice = result.order.basePrice;
@@ -166,33 +266,22 @@ export async function fetchMarketResultsByCriteria(marketProps: MarketPropsInter
       // const duration = result.order.duration;
       // const timeLeft = result.order.timeLeft;
       // const suggestedPrice = result.order.suggestedPrice;
-      const currentPrice = ethers.BigNumber.from(result.order.currentPrice)
-      const triggerPrice = ethers.BigNumber.from(ethers.utils.parseUnits(marketProps.triggerPrice, 'ether'))
 
-      let info = `Axie ID: ${axieId}\n`
-      // info += `Expired At: ${new Date(expiredAt * 1000).toLocaleString()}\n`
-      // info += `Started At: ${new Date(startedAt * 1000).toLocaleString()}\n`
-      // info += `Base Price: ${ethers.utils.formatEther(basePrice)}\n`
-      // info += `Ended At: ${new Date(endedAt * 1000).toLocaleString()}\n`
-      // info += `Ended Price: ${ethers.utils.formatEther(endedPrice)}\n`
-      // info += `Duration: ${duration}\n`
-      // info += `Time Left: ${timeLeft}\n`
-      // info += `Suggested Price: ${ethers.utils.formatEther(suggestedPrice)}\n`
-      // info += `Current Price: ${currentPrice}\n`
-      // info += `Trigger Price: ${triggerPrice}\n`
-      info += `Current Price: ${ethers.utils.formatEther(currentPrice)}\n`
-      info += `Trigger Price: ${ethers.utils.formatEther(triggerPrice)}\n`
-      info += '----------------------------------------\n'
-      // if trigger price is reached, push to orders array
       if (triggerPrice.gte(currentPrice)) {
-        // console.log(info)
         orders.push({
-          id: orderId,
+          id: order.id,
           axieId,
-          marketProps,
-          triggerPrice: triggerPrice.toString(),
-          currentPrice: currentPrice.toString(),
-          status: 'pending'
+          maker: order.maker,
+          assets: order.assets,
+          basePrice: order.basePrice,
+          triggerPrice: ethers.utils.formatEther(triggerPrice),
+          currentPrice: ethers.utils.formatEther(currentPrice),
+          endedAt: order.endedAt,
+          endedPrice: order.endedPrice,
+          expiredAt: order.expiredAt,
+          startedAt: order.startedAt,
+          nonce: order.nonce,
+          signature: order.signature
         })
       }
     }
@@ -203,18 +292,28 @@ export async function fetchMarketResultsByCriteria(marketProps: MarketPropsInter
 
 export async function getMarketOrders() {
   const ordersArray: IMarketOrder[] = []
-
   const orders = await redisClient.get('orders')
-
   if (orders !== null) {
     ordersArray.push(...JSON.parse(orders))
   }
-
   return ordersArray
 }
 
 export async function setMarketOrders(orders: IMarketOrder[]) {
   return await redisClient.set('orders', JSON.stringify(orders))
+}
+
+export async function updateMarketOrderFloorPrice(order: IMarketOrder) {
+  await removeMarketOrder(order.id)
+  await addMarketOrder(order)
+}
+
+export async function addMarketOrder(newOrder: IMarketOrder) {
+  // get current orders list
+  const orders = await getMarketOrders()
+
+  // save to redis
+  await setMarketOrders([...orders, newOrder])
 }
 
 export async function removeMarketOrder(orderId: number) {
@@ -224,15 +323,9 @@ export async function removeMarketOrder(orderId: number) {
   if (orderIndex !== -1) {
     // Remove the order
     orders.splice(orderIndex, 1)
-    // Set orders
+    // Set the new orders
     await setMarketOrders(orders)
   }
 }
 
-export function execOrders(order: ITriggerOrder, markeOrder: IMarketOrder) {
-  // remove the market order from the orders array, to prevent it from being executed again
-  // removeMarketOrder(markeOrder.id)
-
-  // todo: execute the order on ronin network
-
-}
+export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())

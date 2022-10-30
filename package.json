@@ -7,10 +7,9 @@
   "scripts": {
     "start": "npx node-dev app.ts",
     "eslint": "npx eslint . --ext .ts",
-    "accounts": " npx hardhat accounts --network ronin",
-    "main": " npx hardhat run hardhat.main.ts --network ronin",
-    "info": " npx hardhat info --network ronin",
-    "test": " npx hardhat test --network ronin"
+    "account": "npx hardhat account",
+    "list": "npx hardhat list --axie 7518902", // todo, need updated abi
+    "unlist": "npx hardhat unlist --axie 7518902" // todo, need updated abi
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.0",
@@ -30,7 +29,8 @@
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "pg": "^8.8.0",
-    "redis": "^4.3.1"
+    "redis": "^4.3.1",
+    "rxjs": "^7.5.7"
   },
   "ts-node": {
     "transpileOnly": true
