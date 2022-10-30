@@ -348,16 +348,28 @@ app.listen(PORT, async () => {
             // remove the market order from the orders array, to prevent it from being executed again
             await removeMarketOrder(marketOrder.id)
 
-            // // get only the first order, it should be the chepeast one
+            // get only the first order, it should be the chepeast one
             const order = results[0]
-            // // call the hardhart task buy the, with the order as argument
+            // call the hardhart task buy the, with the order as argument
             const tx = await run('buy', { order })
             console.log('tx', tx)
-            // const txLink = `https://explorer.roninchain.com/tx/${tx}`
+            const txLink = `https://explorer.roninchain.com/tx/${tx as string}`
 
-            // send a message to the user/channel who created the order with the tx link
-            // todo: validate that we're the owners of the axie, with a rpc call to the contract
-            // todo: retry 4 secs after the order is created, if the tx is not mined
+            // todo: validate that we're the owners of the axie now, with a rpc call to the contract
+            // todo: generate and send an img of the axie
+
+            // send a message to the channel
+            const endpoint = `/channels/${process.env.BOT_CHANNEL_ID as string}/messages`
+            await DiscordRequest(endpoint, {
+              method: 'POST',
+              body:
+              {
+                embeds: [{
+                  title: `Market order ${marketOrder.id} completed`,
+                  description: txLink
+                }]
+              }
+            })
           }
         }
       }
