@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 import * as dotenv from 'dotenv'
 
@@ -84,21 +85,21 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
   // Stringify payloads
-  if (options?.body.length > 0) options.body = JSON.stringify(options.body)
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+  if (options?.body) options.body = JSON.stringify(options.body)
   // Use node-fetch to make requests
   const res = await fetch(url, {
     headers: {
       Authorization: `Bot ${process.env.DISCORD_TOKEN as string}`,
-      'Content-Type': 'application/json; charset=UTF-8',
-      'User-Agent':
-        'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.0.0)'
+      'Content-Type': 'application/json; charset=UTF-8'
+      // 'User-Agent': 'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.0.0)'
     },
     ...options
   })
   // throw API errors
   if (!res.ok) {
     const data = await res.json()
-    console.log(res.status)
+    // console.log(res.status)
     throw new Error(JSON.stringify(data))
   }
   // return original response
@@ -131,10 +132,10 @@ export async function fetchApi(query: string, variables: { [key: string]: any })
 }
 
 interface Criteria {
-  classes?: string[];
-  parts?: string[];
-  breedCount?: number[];
-  pureness?: number[];
+  classes?: string[]
+  parts?: string[]
+  breedCount?: number[]
+  pureness?: number[]
 }
 
 export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Promise<ITriggerOrder[]> {
@@ -242,11 +243,16 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
     //   await new Promise(resolve => setTimeout(resolve, 1000))
     // }
 
+    const triggerPrice = ethers.BigNumber.from(ethers.utils.parseUnits(marketOrder.triggerPrice, 'ether'))
+
     // save floor price
     const floorPrice = ethers.utils.formatEther(res.data.axies.results[0].order.currentPrice)
     // if floor price different than the one in the database, update it
     if (floorPrice !== marketOrder.floorPrice) {
-      console.log(`  new floor price ${floorPrice}`)
+      console.log(`--new floor price ${floorPrice}`)
+      console.log(`--trigger price   ${ethers.utils.formatEther(triggerPrice)}`)
+      console.log(`--diff            ${ethers.utils.formatEther(ethers.BigNumber.from(ethers.utils.parseUnits(floorPrice, 'ether')).sub(triggerPrice))}`)
+      // todo: calculage gap % with the other results, to see if it's worth it
       // todo: send a message to notify the floor price
       marketOrder.floorPrice = floorPrice
       void updateMarketOrderFloorPrice(marketOrder)
@@ -257,7 +263,6 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
       const { order } = result
       const axieId = order.assets[0].id as string
       const currentPrice = ethers.BigNumber.from(order.currentPrice)
-      const triggerPrice = ethers.BigNumber.from(ethers.utils.parseUnits(marketOrder.triggerPrice, 'ether'))
       // const expiredAt = result.order.expiredAt;
       // const startedAt = result.order.startedAt;
       // const basePrice = result.order.basePrice;
@@ -329,3 +334,93 @@ export async function removeMarketOrder(orderId: number) {
 }
 
 export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
+
+export function HasGuildCommands(
+  appId: string | undefined,
+  guildId: string | undefined,
+  commands: any[]
+): void {
+  if (guildId === '' || appId === '') return
+
+  commands.forEach((c: any) => {
+    HasGuildCommand(appId, guildId, c).catch((err) => {
+      console.error('Error checking command:', err)
+    })
+  })
+}
+
+// Checks for a command
+async function HasGuildCommand(
+  appId: any,
+  guildId: any,
+  command: { [x: string]: any }
+): Promise<void> {
+  // API endpoint to get and post guild commands
+  const endpoint = `applications/${appId}/guilds/${guildId}/commands`
+
+  try {
+    const res = await DiscordRequest(endpoint, { method: 'GET' })
+    const data = await res.json()
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (data) {
+      const installedNames = data.map((c: any) => c.name)
+      // This is just matching on the name, so it's not good for updates
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (!installedNames.includes(command.name)) {
+        console.log(`Installing "${command.name}"`)
+        InstallGuildCommand(appId, guildId, command).catch((err) => {
+          console.error('Error installing command:', err)
+        })
+      }
+      // else {
+      //   console.log(`"${command.name}" command already installed`)
+      //   // Update command
+      //   const commandId = data.find((c: any) => c.name === command.name).id
+      //   UpdateGuildCommand(appId, guildId, commandId, command).catch((err) => {
+      //     console.error('Error updating command:', err)
+      //   })
+      // }
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+// Updates a command
+export async function UpdateGuildCommand(
+  appId: any,
+  guildId: any,
+  commandId: any,
+  command: { [x: string]: any }
+): Promise<void> {
+  // API endpoint to get and post guild commands
+  const endpoint = `applications/${appId}/guilds/${guildId}/commands/${commandId}`
+
+  try {
+    const res = await DiscordRequest(endpoint, { method: 'PATCH', body: command })
+    const data = await res.json()
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (data) {
+      console.log(`"${command.name}" command updated`)
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+// Installs a command
+export async function InstallGuildCommand(
+  appId: any,
+  guildId: any,
+  command: any
+): Promise<void> {
+  // API endpoint to get and post guild commands
+  const endpoint = `applications/${appId}/guilds/${guildId}/commands`
+  // install command
+  try {
+    await DiscordRequest(endpoint, { method: 'POST', body: command })
+  } catch (err) {
+    console.error(err)
+  }
+}

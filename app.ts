@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
+import { AXIE_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND, ADD_ORDER_COMMAND } from './constants'
 import express from 'express'
 import {
   InteractionType,
@@ -6,7 +7,6 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import {
-  fetchApi,
   MarketPropsInterface,
   IMarketOrder,
   VerifyDiscordRequest,
@@ -14,23 +14,12 @@ import {
   setMarketOrders,
   fetchMarketResultsByOrder,
   removeMarketOrder,
-  addMarketOrder
+  addMarketOrder,
+  DiscordRequest,
+  HasGuildCommands
 } from './utils'
-import {
-  HasGuildCommands,
-  AXIE_COMMAND,
-  ADD_ORDER_COMMAND,
-  GET_ORDERS_COMMAND,
-  REMOVE_ORDER_COMMAND
-} from './commands'
-import * as fs from 'fs/promises'
-
-import { CONTRACT_AXIE_ABI_JSON_PATH, CONTRACT_AXIE_ADDRESS } from './constants'
-// import { ethers } from 'ethers'
-// import config from './hardhat.config'
 import { ethers } from 'ethers'
 import { run, userConfig } from 'hardhat'
-
 import * as dotenv from 'dotenv'
 dotenv.config()
 

@@ -7,9 +7,7 @@
   "scripts": {
     "start": "npx node-dev app.ts",
     "eslint": "npx eslint . --ext .ts",
-    "account": "npx hardhat account",
-    "list": "npx hardhat list --axie 7518902", // todo, need updated abi
-    "unlist": "npx hardhat unlist --axie 7518902" // todo, need updated abi
+    "account": "npx hardhat account"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.0",

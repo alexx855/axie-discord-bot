@@ -29,3 +29,45 @@ export const CONTRACT_MARKETPLACE_V2_ADDRESS = '0xfff9ce5f71ca6178d3beecedb61e7e
 export const CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH = 'abis/market_v2.json'
 
 export const GRAPHQL_URL = 'https://graphql-gateway.axieinfinity.com/graphql'
+
+// Command that returns custom axie data, like estimated price
+export const AXIE_COMMAND = {
+  name: 'axie',
+  description: 'Get custom axie data by ID',
+  options: [
+    {
+      name: 'axie_id',
+      description: 'Axie ID',
+      type: 3,
+      required: true
+    }
+  ],
+  type: 1
+}
+
+// Commands for the orders management
+export const GET_ORDERS_COMMAND = {
+  name: 'get_orders',
+  description: 'Get open bot orders',
+  type: 1
+}
+
+export const REMOVE_ORDER_COMMAND = {
+  name: 'remove_order',
+  description: 'Remove open bot order',
+  options: [
+    {
+      name: 'order_id',
+      description: 'Order ID',
+      type: 3,
+      required: true
+    }
+  ],
+  type: 1
+}
+
+export const ADD_ORDER_COMMAND = {
+  name: 'add_order',
+  description: 'Add bot order',
+  type: 1
+}
