@@ -21,6 +21,7 @@ import {
 import { ethers } from 'ethers'
 import { run, userConfig } from 'hardhat'
 import * as dotenv from 'dotenv'
+import handleAxieCommand from './commands/axie'
 dotenv.config()
 
 const networks = userConfig.networks as any
@@ -63,8 +64,11 @@ app.post('/interactions', async (req, res) => {
     console.log(data)
     // const userId = data.member.user.id
     console.log('Command name:', name)
-
-    // data.guild_id
+    if (name === 'axie') {
+      // Send a message into the channel where command was triggered from
+      const axieId = data.options[0].value as string
+      return handleAxieCommand(axieId, res)
+    }
 
     if (name === 'get_orders') {
       const userId: string = req.body.member.user.id
@@ -303,7 +307,7 @@ app.listen(PORT, async () => {
       const diff = Date.now() - time
       time = Date.now()
 
-      // we got two block at the same time, skip this one
+      // we got two block almost at the same time, skip this one
       if (diff <= 1000) {
         return
       }
