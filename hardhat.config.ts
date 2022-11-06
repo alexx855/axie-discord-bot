@@ -9,7 +9,7 @@ import {
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
-import { ITriggerOrder } from './utils'
+import { fetchApi, ITriggerOrder } from './utils'
 import * as fs from 'fs/promises'
 
 import * as dotenv from 'dotenv'
@@ -110,6 +110,109 @@ task('buy', 'Buy and axie from the marketplace')
     } catch (error) {
       console.error(error)
       throw error
+    }
+  })
+
+task('unlist', 'Unlist an axie on the marketplace')
+  .addParam('axie', 'The axie ID without #')
+  .setAction(async (taskArgs: { axie: string }, hre) => {
+    try {
+      const axieId = parseInt(taskArgs.axie, 10)
+      if (isNaN(axieId) || axieId <= 0) {
+        throw new Error('Invalid Axie ID provided')
+      }
+      // const accounts = await hre.ethers.getSigners()
+      // const account = accounts[0].address
+
+      // query the marketplace for the axie order
+      const query = `
+          query GetAxieDetail($axieId: ID!) {
+            axie(axieId: $axieId) {
+              id
+              order {
+                ... on Order {
+                  id
+                  maker
+                  kind
+                  assets {
+                    ... on Asset {
+                      erc
+                      address
+                      id
+                      quantity
+                      orderId
+                    }
+                  }
+                  expiredAt
+                  paymentToken
+                  startedAt
+                  basePrice
+                  endedAt
+                  endedPrice
+                  expectedState
+                  nonce
+                  marketFeePercentage
+                  signature
+                  hash
+                  duration
+                  timeLeft
+                  currentPrice
+                  suggestedPrice
+                  currentPriceUsd
+                }
+              }
+            }
+          }
+        `
+      const variables = {
+        axieId
+      }
+
+      const result = await fetchApi(query, variables)
+      const order: any | undefined = result?.data?.axie?.order
+      if (order === undefined) {
+        throw new Error('Axie is not listed on the marketplace')
+      }
+
+      console.log('order', order)
+
+      // get marketplace contract
+      const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
+      const marketplaceContract: any = await hre.ethers.getContractAt(
+        marketAbi,
+        CONTRACT_MARKETPLACE_V2_ADDRESS
+      )
+
+      // create the cancel order data
+      const cancelOrderData = marketplaceContract.interface.encodeFunctionData('cancelOrder',
+        [
+          [
+            order.maker,
+            1, // market order kind
+            [[ // MarketAsset.Asset[]
+              1, // MarketAsset.TokenStandard
+              order.assets[0].address,
+              order.assets[0].id,
+              order.assets[0].quantity
+            ]],
+            order.expiredAt,
+            CONTRACT_WETH_ADDRESS, // paymentToken
+            order.startedAt,
+            order.basePrice,
+            order.endedAt,
+            order.endedPrice,
+            0, // expectedState
+            order.nonce,
+            425 // Market fee percentage, 4.25%
+          ]
+        ]
+      )
+
+      const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData)
+      // console.log('txUnlistAxie', txUnlistAxie.hash)
+      return txUnlistAxie.hash
+    } catch (error) {
+      console.error(error)
     }
   })
 
