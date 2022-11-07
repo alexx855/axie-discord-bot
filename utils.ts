@@ -17,7 +17,7 @@ export const redisClient = createClient({
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
 }).on('error', (err) => console.log('Redis redisClient Error', err))
-redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
+// redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
 
 // postgres client
 export const postgresClient = new Client(
@@ -29,7 +29,7 @@ export const postgresClient = new Client(
     port: 5432
   }
 ).on('error', (err) => console.log('Postgres postgresClient Error', err))
-postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
+// postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export interface IMarketOrder {
   id: number
@@ -116,8 +116,9 @@ export async function fetchApi(query: string, variables: { [key: string]: any })
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
-        // Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY3ODA5MzIwLCJpYXQiOjE2NjY1OTk3MjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.eHk_QteNfGH4RiZGIm52V8_JFTMiOt5Ion4bixIVLLs',
+        'Content-Type': 'application/json',
+        // TODO: generate token
+        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY3ODA5MzIwLCJpYXQiOjE2NjY1OTk3MjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.eHk_QteNfGH4RiZGIm52V8_JFTMiOt5Ion4bixIVLLs'
         // 'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)'
       },
       body: JSON.stringify({ query, variables })
