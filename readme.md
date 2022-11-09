@@ -7,8 +7,15 @@ cp .env.example .env
 ```
 npm install
 ```
-### development
-
+### start the server
 ```
-npx node-dev app.ts
+npm start
 ```
+# bot commands
+```
+- [x] Axie
+  - [ ] Sub-task or description  
+  - [ ] Sub-task or description  
+- [x] Venus
+- [x] Earth (Orbit/Moon)
+- [x] Mars
