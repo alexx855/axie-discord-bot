@@ -31,45 +31,51 @@ task('buy', 'Buy and axie from the marketplace')
       }
 
       const accounts = await hre.ethers.getSigners()
-      const account = accounts[0].address
+      const signer = accounts[0]
+      const address = signer.address.toLowerCase()
 
       // get axie contract
-      const axieContract = await hre.ethers.getContractAt(
-        JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')),
-        CONTRACT_AXIE_ADDRESS
+      const axieABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+      const axieContract = await new hre.ethers.Contract(
+        CONTRACT_AXIE_ADDRESS,
+        axieABI,
+        signer
       )
 
       // check if the account has given approval to the marketplace contract to transfer the axie
-      const isApproved: boolean = await axieContract.isApprovedForAll(account, CONTRACT_MARKETPLACE_V2_ADDRESS)
+      const isApproved: boolean = await axieContract.isApprovedForAll(address, CONTRACT_MARKETPLACE_V2_ADDRESS)
       if (!isApproved) {
         throw new Error('Please approve the marketplace contract to transfer the axie')
       }
 
       // get marketplace contract
-      const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
-      const marketplaceContract = await hre.ethers.getContractAt(
-        marketAbi,
-        CONTRACT_MARKETPLACE_V2_ADDRESS
+      const marketABI = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
+      const marketplaceContract = await new hre.ethers.Contract(
+        CONTRACT_MARKETPLACE_V2_ADDRESS,
+        marketABI,
+        signer
       )
 
       // check if have enough balance
-      const balance = await hre.ethers.provider.getBalance(account)
+      const balance = await hre.ethers.provider.getBalance(address)
       const currentPrice = hre.ethers.BigNumber.from(order.currentPrice)
       if (currentPrice.gte(balance)) {
         throw new Error('Not enough balance')
       }
 
       // approve WETH Contract to transfer WETH from the account
-      const wethContract = await hre.ethers.getContractAt(
-        JSON.parse(await fs.readFile(CONTRACT_WETH_ABI_JSON_PATH, 'utf8')),
-        CONTRACT_WETH_ADDRESS
+      const wethABI = JSON.parse(await fs.readFile(CONTRACT_WETH_ABI_JSON_PATH, 'utf8'))
+      const wethContract = await new hre.ethers.Contract(
+        CONTRACT_WETH_ADDRESS,
+        wethABI,
+        signer
       )
-      const allowance: BigNumber = await wethContract.allowance(account, CONTRACT_MARKETPLACE_V2_ADDRESS)
+      const allowance: BigNumber = await wethContract.allowance(address, CONTRACT_MARKETPLACE_V2_ADDRESS)
       // console.log('WETH Allowance ', allowance.toString())
       if (!allowance.gte(0)) {
         // same amount as the ronin wallet approval, got it from there
         const amountToapproved = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-        const txApproveWETH = await wethContract.approve(account, amountToapproved)
+        const txApproveWETH = await wethContract.approve(address, amountToapproved)
         console.log('txApproveWETH', txApproveWETH.hash)
 
         throw new Error('Need approve the marketplace contract to transfer WETH, no allowance')
@@ -177,7 +183,7 @@ task('unlist', 'Unlist an axie on the marketplace')
 
       // get marketplace contract
       const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
-      const marketplaceContract: any = await hre.ethers.getContractAt(
+      const marketplaceContract = await new hre.ethers.Contract(
         marketAbi,
         CONTRACT_MARKETPLACE_V2_ADDRESS
       )
@@ -218,7 +224,7 @@ task('unlist', 'Unlist an axie on the marketplace')
 task('list', 'List an axie on the marketplace')
   .addParam('axie', 'The axie ID without #')
   .addParam('basePrice', 'The start price like the marketplace, example: 0.1')
-  .addParam('access-token', 'The marketplace access token')
+  .addParam('accessToken', 'The marketplace access token')
   .addOptionalParam('endedPrice', 'The end price like the marketplace, example: 0.01')
   .addOptionalParam('duration', 'The duration of the aution in days')
   .setAction(async (taskArgs: {
@@ -508,7 +514,8 @@ task('generate-access-token', 'Generate marketplace access token', async (taskAr
 task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
   try {
     const accounts = await hre.ethers.getSigners()
-    const address = accounts[0].address.toLowerCase()
+    const signer = accounts[0]
+    const address = signer.address.toLowerCase()
     console.log('Address', address)
 
     // get RON balance
@@ -517,15 +524,15 @@ task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
     console.log('RON:', balanceInEther)
 
     // get WETH balance
-    const WETH_ABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
-    const wethContract = new hre.ethers.Contract(CONTRACT_WETH_ADDRESS, WETH_ABI, hre.ethers.provider)
+    const wethABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+    const wethContract = new hre.ethers.Contract(CONTRACT_WETH_ADDRESS, wethABI, signer)
     const wethBalance = await wethContract.balanceOf(address)
     const wethBalanceInEther = hre.ethers.utils.formatEther(wethBalance)
     console.log('WETH:', wethBalanceInEther)
 
     // get axie contract
-    const AXIE_ABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
-    const axieContract = await new hre.ethers.Contract(CONTRACT_AXIE_ADDRESS, AXIE_ABI, hre.ethers.provider)
+    const axieABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+    const axieContract = await new hre.ethers.Contract(CONTRACT_AXIE_ADDRESS, axieABI, signer)
 
     // get axies balance for the address
     const axiesBalance = await axieContract.balanceOf(address)

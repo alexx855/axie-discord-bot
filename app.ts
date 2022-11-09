@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-misused-promises */
-import { AXIE_COMMAND, GET_ORDERS_COMMAND, REMOVE_ORDER_COMMAND, ADD_ORDER_COMMAND } from './constants'
+import {
+  AXIE_COMMAND,
+  GET_ORDERS_COMMAND,
+  REMOVE_ORDER_COMMAND,
+  ADD_ORDER_COMMAND
+} from './constants'
 import express from 'express'
 import {
   InteractionType,
@@ -20,16 +25,11 @@ import {
 } from './utils'
 import { ethers } from 'ethers'
 import { run, userConfig } from 'hardhat'
-import * as dotenv from 'dotenv'
 import handleAxieCommand from './commands/axie'
-dotenv.config()
+import { randomUUID } from 'crypto'
 
-const networks = userConfig.networks as any
-const url = networks?.ronin?.url as string
-const provider = new ethers.providers.JsonRpcProvider(
-  url,
-  networks?.ronin?.chainId
-)
+import * as dotenv from 'dotenv'
+dotenv.config()
 
 // Create an express app
 const app = express()
@@ -67,7 +67,7 @@ app.post('/interactions', async (req, res) => {
     if (name === 'axie') {
       // Send a message into the channel where command was triggered from
       const axieId = data.options[0].value as string
-      return handleAxieCommand(axieId, res)
+      return await handleAxieCommand(axieId, res)
     }
 
     if (name === 'get_orders') {
@@ -248,7 +248,7 @@ app.post('/interactions', async (req, res) => {
 
       // create the new market order
       const newOrder: IMarketOrder = {
-        id: Date.now(), // todo: use a real id generator
+        id: randomUUID(),
         userId,
         marketUrl,
         marketProps: marketPropsGrouped,
@@ -292,14 +292,6 @@ app.listen(PORT, async () => {
     ADD_ORDER_COMMAND
   ])
 
-  // get first account from the network list, ref: hardhat.config.ts
-  const wallet = new ethers.Wallet(networks.ronin.accounts[0], provider)
-  const address = await wallet.getAddress()
-  // get account balance
-  const balance = await provider.getBalance(address)
-  const balanceInEther = ethers.utils.formatEther(balance)
-  console.log(`RON balance: ${balanceInEther}`)
-
   // track time, some blocks came almost at the same time
   let time = Date.now()
   const onBlock = async (blockNumber: number): Promise<void> => {
@@ -315,7 +307,7 @@ app.listen(PORT, async () => {
       // todo: add env var to enable/disable this dev logs
       console.log(`new block ${blockNumber} received after ${diff}ms`)
 
-      // get orders from redis
+      // get buy   orders from redis
       const marketOrders = await getMarketOrders()
 
       if (marketOrders.length > 0) {
@@ -344,11 +336,8 @@ app.listen(PORT, async () => {
             await removeMarketOrder(marketOrder.id)
 
             // call the hardhart task buy the, with the order as argument
-            const tx = await run('buy', { order: JSON.stringify(order) })
-            const txLink = `https://explorer.roninchain.com/tx/${tx as string}`
-
-            // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
-            // ?? todo: validate that we're the owners of the axie now, with a rpc call to the contract
+            const tx: string = await run('buy', { order: JSON.stringify(order) })
+            const txLink = `https://explorer.roninchain.com/tx/${tx}`
 
             // send a message to the channel
             const endpoint = `/channels/${process.env.BOT_CHANNEL_ID as string}/messages`
@@ -372,6 +361,9 @@ app.listen(PORT, async () => {
     }
   }
 
+  // subscribe to new blocks
+  const { chainId, url } = userConfig.networks?.ronin as any
+  const provider = new ethers.providers.JsonRpcProvider(url, chainId)
   provider.on('block', onBlock)
 })
 
