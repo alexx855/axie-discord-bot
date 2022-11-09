@@ -32,7 +32,7 @@ export const postgresClient = new Client(
 // postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export interface IMarketOrder {
-  id: number
+  id: string
   userId: string
   marketProps: MarketPropsInterface
   marketUrl: string
@@ -111,15 +111,13 @@ export function capitalize(str: string): string {
 }
 
 // convert the function fetchMarket from the python script axie.py to a typescript function
-export async function fetchApi(query: string, variables: { [key: string]: any }): Promise<any> {
+export async function fetchApi(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<any> {
   try {
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // TODO: generate token
-        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY3ODA5MzIwLCJpYXQiOjE2NjY1OTk3MjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.eHk_QteNfGH4RiZGIm52V8_JFTMiOt5Ion4bixIVLLs'
-        // 'User-Agent': 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)'
+        ...headers
       },
       body: JSON.stringify({ query, variables })
     })
@@ -298,15 +296,21 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
 
 export async function getMarketOrders() {
   const ordersArray: IMarketOrder[] = []
+  await redisClient.connect()
+
   const orders = await redisClient.get('orders')
   if (orders !== null) {
     ordersArray.push(...JSON.parse(orders))
   }
+
+  void redisClient.disconnect()
   return ordersArray
 }
 
 export async function setMarketOrders(orders: IMarketOrder[]) {
-  return await redisClient.set('orders', JSON.stringify(orders))
+  await redisClient.connect()
+  await redisClient.set('orders', JSON.stringify(orders))
+  void redisClient.disconnect()
 }
 
 export async function updateMarketOrderFloorPrice(order: IMarketOrder) {
@@ -322,7 +326,7 @@ export async function addMarketOrder(newOrder: IMarketOrder) {
   await setMarketOrders([...orders, newOrder])
 }
 
-export async function removeMarketOrder(orderId: number) {
+export async function removeMarketOrder(orderId: string) {
   const orders = await getMarketOrders()
   // Check if order exists
   const orderIndex = orders.findIndex(order => order.id === orderId)
@@ -335,6 +339,28 @@ export async function removeMarketOrder(orderId: number) {
 }
 
 export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
+
+export const getRandomMessage = async (): Promise<string> => {
+  const query = `mutation CreateRandomMessage {
+    createRandomMessage
+  }`
+  const res = await fetchApi(query, {})
+  return res.data.createRandomMessage
+}
+
+export const createAccessTokenWithSignature = async (owner: string, message: string, signature: string): Promise<string> => {
+  const query = `mutation CreateAccessTokenWithSignature($input: SignatureInput!) {
+    createAccessTokenWithSignature(input: $input) {
+      newAccount
+      result
+      accessToken
+      __typename
+    }
+  }`
+  const variables = { input: { mainnet: 'ronin', owner, message, signature } }
+  const res = await fetchApi(query, variables)
+  return res.data.createAccessTokenWithSignature.accessToken ?? res.errors.message
+}
 
 export function HasGuildCommands(
   appId: string | undefined,
@@ -365,8 +391,8 @@ async function HasGuildCommand(
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (data) {
-      const installedNames = data.map((c: any) => c.name)
       // This is just matching on the name, so it's not good for updates
+      const installedNames = data.map((c: any) => c.name)
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (!installedNames.includes(command.name)) {
         console.log(`Installing "${command.name}"`)
@@ -374,6 +400,7 @@ async function HasGuildCommand(
           console.error('Error installing command:', err)
         })
       }
+      // Uncomment this to update commands
       // else {
       //   console.log(`"${command.name}" command already installed`)
       //   // Update command
@@ -410,6 +437,7 @@ export async function UpdateGuildCommand(
     console.error(err)
   }
 }
+
 // Installs a command
 export async function InstallGuildCommand(
   appId: any,
