@@ -460,24 +460,30 @@ task('list', 'List an axie on the marketplace')
   })
 
 task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
-  const { ethers } = hre
   try {
-    const accounts = await ethers.getSigners()
+    const accounts = await hre.ethers.getSigners()
     const account = accounts[0].address
-    // get account balance
-    const balance = await ethers.provider.getBalance(account)
-    // convert balance to ether
-    const balanceInEther = ethers.utils.formatEther(balance)
-    console.log('balance', balanceInEther)
+
+    // get RON balance
+    const balance = await hre.ethers.provider.getBalance(account)
+    const balanceInEther = hre.ethers.utils.formatEther(balance)
+    console.log('RON:', balanceInEther)
+
+    // get WETH balance
+    const WETH_ABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+    const wethContract = new hre.ethers.Contract(CONTRACT_WETH_ADDRESS, WETH_ABI, hre.ethers.provider)
+    const wethBalance = await wethContract.balanceOf(account)
+    const wethBalanceInEther = hre.ethers.utils.formatEther(wethBalance)
+    console.log('WETH:', wethBalanceInEther)
 
     // get axie contract
-    const axieContract = await ethers.getContractAt(
+    const axieContract = await hre.ethers.getContractAt(
       JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')),
       CONTRACT_AXIE_ADDRESS
     )
     // get axies balance for the account
     const axiesBalance = await axieContract.balanceOf(account)
-    console.log('axies: ', ethers.BigNumber.from(axiesBalance).toNumber())
+    console.log('Axies:', hre.ethers.BigNumber.from(axiesBalance).toNumber())
   } catch (error) {
     console.error(error)
   }
