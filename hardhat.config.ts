@@ -9,7 +9,7 @@ import {
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
-import { fetchApi, ITriggerOrder } from './utils'
+import { createAccessTokenWithSignature, fetchApi, getRandomMessage, ITriggerOrder } from './utils'
 import * as fs from 'fs/promises'
 
 import * as dotenv from 'dotenv'
@@ -24,9 +24,9 @@ task('buy', 'Buy and axie from the marketplace')
   .setAction(async (taskArgs: { order: string }, hre) => {
     try {
       const order: ITriggerOrder = JSON.parse(taskArgs.order)
-      console.log('order', order)
+
       const axieId = parseInt(order.axieId, 10)
-      if (isNaN(axieId) || axieId <= 0) {
+      if (isNaN(axieId)) {
         throw new Error('Invalid Axie ID provided')
       }
 
@@ -104,8 +104,12 @@ task('buy', 'Buy and axie from the marketplace')
         ]
       )
 
-      const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
+      const txBuyAxie: any = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
       // console.log('txBuyAxie', txBuyAxie)
+
+      // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
+      // ?? todo: validate that we're the owners of the axie now, with a rpc call to the contract
+
       return txBuyAxie.hash
     } catch (error) {
       console.error(error)
@@ -118,12 +122,9 @@ task('unlist', 'Unlist an axie on the marketplace')
   .setAction(async (taskArgs: { axie: string }, hre) => {
     try {
       const axieId = parseInt(taskArgs.axie, 10)
-      if (isNaN(axieId) || axieId <= 0) {
+      if (isNaN(axieId)) {
         throw new Error('Invalid Axie ID provided')
       }
-      // const accounts = await hre.ethers.getSigners()
-      // const account = accounts[0].address
-
       // query the marketplace for the axie order
       const query = `
           query GetAxieDetail($axieId: ID!) {
@@ -169,12 +170,10 @@ task('unlist', 'Unlist an axie on the marketplace')
       }
 
       const result = await fetchApi(query, variables)
-      const order: any | undefined = result?.data?.axie?.order
-      if (order === undefined) {
+      const order: any | null = result?.data?.axie?.order
+      if (order === null) {
         throw new Error('Axie is not listed on the marketplace')
       }
-
-      console.log('order', order)
 
       // get marketplace contract
       const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
@@ -218,23 +217,56 @@ task('unlist', 'Unlist an axie on the marketplace')
 
 task('list', 'List an axie on the marketplace')
   .addParam('axie', 'The axie ID without #')
-  .setAction(async (taskArgs: { axie: string }, hre) => {
+  .addParam('basePrice', 'The start price like the marketplace, example: 0.1')
+  .addParam('access-token', 'The marketplace access token')
+  .addOptionalParam('endedPrice', 'The end price like the marketplace, example: 0.01')
+  .addOptionalParam('duration', 'The duration of the aution in days')
+  .setAction(async (taskArgs: {
+    axie: string
+    basePrice: string
+    endedPrice?: string
+    duration?: string
+    accessToken: string
+  }, hre) => {
     try {
+      if (!hre.ethers.utils.parseUnits(taskArgs.basePrice, 'ether')._isBigNumber) {
+        throw new Error('Invalid basePrice provided')
+      }
+      const basePrice = hre.ethers.utils.parseUnits(taskArgs.basePrice, 'ether').toString()
+      const accessToken = taskArgs.accessToken
       const accounts = await hre.ethers.getSigners()
-      // first account is the default account
-      const address = accounts[0].address.toLowerCase()
+      const signer = accounts[0]
+      const address = signer.address.toLowerCase()
 
-      // todo: validate id with the api or rpc
       const axieId = parseInt(taskArgs.axie, 10)
-      if (isNaN(axieId) || axieId <= 0) {
+      if (isNaN(axieId)) {
         throw new Error('Invalid Axie ID provided')
       }
 
       // get current block timestamp
       const currentBlock = await hre.ethers.provider.getBlock('latest')
       const startedAt = currentBlock.timestamp
-      const expiredAt = startedAt + 15724800 // ~ 6 months in seconds, ronin wallet default duration
-      const basePrice = '500000000000000000' // 0.5 ETH
+      let endedAt = 0
+      let duration = 86400 // 86400 seconds in a day, one day as default like the marketplace
+      if (taskArgs.duration !== undefined) {
+        duration = duration * parseInt(taskArgs.duration, 10)
+        if (isNaN(duration)) {
+          throw new Error('Invalid duration provided')
+        }
+        endedAt = startedAt + duration
+      }
+
+      let endedPrice
+      if (taskArgs.endedPrice !== undefined) {
+        if (!hre.ethers.utils.parseUnits(taskArgs.endedPrice, 'ether')._isBigNumber) {
+          throw new Error('Invalid endedPrice provided')
+        }
+        endedPrice = hre.ethers.utils.parseUnits(taskArgs.endedPrice, 'ether').toString()
+      } else {
+        endedPrice = basePrice
+      }
+      // ~ 6 months default and max listing duration
+      const expiredAt = startedAt + 15634800
 
       const message = {
         types: {
@@ -346,15 +378,14 @@ task('list', 'List an axie on the marketplace')
           expiredAt,
           paymentToken: CONTRACT_WETH_ADDRESS,
           startedAt,
-          basePrice: '500000000000000000',
-          endedAt: '0',
-          endedPrice: '0',
+          basePrice,
+          endedAt,
+          endedPrice,
           expectedState: '0',
           nonce: '0',
           marketFeePercentage: '425'
         }
       }
-
       // sign the trasaction, we need to call eth_signTypedData_v4 EPI721
       const signature = await hre.ethers.provider.send('eth_signTypedData_v4', [address, JSON.stringify(message)])
 
@@ -412,22 +443,21 @@ task('list', 'List an axie on the marketplace')
             }
           ],
           basePrice,
-          endedPrice: '0',
+          endedPrice,
           startedAt,
-          endedAt: 0,
+          endedAt,
           expiredAt
         },
         signature
       }
 
-      // todo: generate token or move to env
       const headers = {
-        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY5MDQ2NDYwLCJpYXQiOjE2Njc4MzY4NjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.JJTY5W2yFWi_bxp45i-itLTsHVXCHw5eCgaM5oTu3tA'
+        authorization: `Bearer ${accessToken}`
       }
 
+      // send the order to the marketplace
       const result = await fetchApi(query, variables, headers)
       // console.log('result', result)
-
       if (result.errors !== undefined) {
         throw new Error(result.errors[0].message)
       }
@@ -445,8 +475,8 @@ task('list', 'List an axie on the marketplace')
         data: {
           axieId: axieId.toString(),
           priceFrom: basePrice,
-          priceTo: basePrice,
-          duration: '86400', // todo: calculate duration
+          priceTo: endedPrice,
+          duration: duration.toString(),
           txHash: result.data.createOrder.hash
         }
       }
@@ -459,30 +489,46 @@ task('list', 'List an axie on the marketplace')
     }
   })
 
+task('generate-access-token', 'Generate marketplace access token', async (taskArgs, hre) => {
+  try {
+    const accounts = await hre.ethers.getSigners()
+    const signer = accounts[0]
+    const address = signer.address.toLowerCase()
+
+    const message = await getRandomMessage()
+    const signature = await signer.signMessage(message)
+    const token = await createAccessTokenWithSignature(address, message, signature)
+    return token
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+})
+
 task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
   try {
     const accounts = await hre.ethers.getSigners()
-    const account = accounts[0].address
+    const address = accounts[0].address.toLowerCase()
+    console.log('Address', address)
 
     // get RON balance
-    const balance = await hre.ethers.provider.getBalance(account)
+    const balance = await hre.ethers.provider.getBalance(address)
     const balanceInEther = hre.ethers.utils.formatEther(balance)
     console.log('RON:', balanceInEther)
 
     // get WETH balance
     const WETH_ABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
     const wethContract = new hre.ethers.Contract(CONTRACT_WETH_ADDRESS, WETH_ABI, hre.ethers.provider)
-    const wethBalance = await wethContract.balanceOf(account)
+    const wethBalance = await wethContract.balanceOf(address)
     const wethBalanceInEther = hre.ethers.utils.formatEther(wethBalance)
     console.log('WETH:', wethBalanceInEther)
 
     // get axie contract
-    const axieContract = await hre.ethers.getContractAt(
-      JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8')),
-      CONTRACT_AXIE_ADDRESS
-    )
-    // get axies balance for the account
-    const axiesBalance = await axieContract.balanceOf(account)
+    const AXIE_ABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+    const axieContract = await new hre.ethers.Contract(CONTRACT_AXIE_ADDRESS, AXIE_ABI, hre.ethers.provider)
+
+    // get axies balance for the address
+    const axiesBalance = await axieContract.balanceOf(address)
     console.log('Axies:', hre.ethers.BigNumber.from(axiesBalance).toNumber())
   } catch (error) {
     console.error(error)
@@ -494,30 +540,11 @@ task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
 const config: HardhatUserConfig = {
   defaultNetwork: 'ronin',
   networks: {
-    hardhat: {
-      chainId: 1337
-    },
     ronin: {
       chainId: 2020,
       url: process.env.RONIN_NETWORK_URL ?? 'https://api.roninchain.com/rpc',
-      accounts: [process.env.PRIVATE_KEY ?? '']
+      accounts: [process.env.PRIVATE_KEY as string]
     }
-  },
-  solidity: {
-    compilers: [
-      {
-        version: '0.8.0'
-      }
-    ]
-  },
-  paths: {
-    sources: './contracts',
-    tests: './test',
-    cache: './cache',
-    artifacts: './artifacts'
-  },
-  mocha: {
-    timeout: 600000
   }
 }
 
