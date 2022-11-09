@@ -209,10 +209,253 @@ task('unlist', 'Unlist an axie on the marketplace')
       )
 
       const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData)
-      // console.log('txUnlistAxie', txUnlistAxie.hash)
+      console.log('txUnlistAxie', txUnlistAxie.hash)
       return txUnlistAxie.hash
     } catch (error) {
       console.error(error)
+    }
+  })
+
+task('list', 'List an axie on the marketplace')
+  .addParam('axie', 'The axie ID without #')
+  .setAction(async (taskArgs: { axie: string }, hre) => {
+    try {
+      const accounts = await hre.ethers.getSigners()
+      // first account is the default account
+      const address = accounts[0].address.toLowerCase()
+
+      // todo: validate id with the api or rpc
+      const axieId = parseInt(taskArgs.axie, 10)
+      if (isNaN(axieId) || axieId <= 0) {
+        throw new Error('Invalid Axie ID provided')
+      }
+
+      // get current block timestamp
+      const currentBlock = await hre.ethers.provider.getBlock('latest')
+      const startedAt = currentBlock.timestamp
+      const expiredAt = startedAt + 15724800 // ~ 6 months in seconds, ronin wallet default duration
+      const basePrice = '500000000000000000' // 0.5 ETH
+
+      const message = {
+        types: {
+          Asset: [
+            {
+              name: 'erc',
+              type: 'uint8'
+            },
+            {
+              name: 'addr',
+              type: 'address'
+            },
+            {
+              name: 'id',
+              type: 'uint256'
+            },
+            {
+              name: 'quantity',
+              type: 'uint256'
+            }
+          ],
+          Order: [
+            {
+              name: 'maker',
+              type: 'address'
+            },
+            {
+              name: 'kind',
+              type: 'uint8'
+            },
+            {
+              name: 'assets',
+              type: 'Asset[]'
+            },
+            {
+              name: 'expiredAt',
+              type: 'uint256'
+            },
+            {
+              name: 'paymentToken',
+              type: 'address'
+            },
+            {
+              name: 'startedAt',
+              type: 'uint256'
+            },
+            {
+              name: 'basePrice',
+              type: 'uint256'
+            },
+            {
+              name: 'endedAt',
+              type: 'uint256'
+            },
+            {
+              name: 'endedPrice',
+              type: 'uint256'
+            },
+            {
+              name: 'expectedState',
+              type: 'uint256'
+            },
+            {
+              name: 'nonce',
+              type: 'uint256'
+            },
+            {
+              name: 'marketFeePercentage',
+              type: 'uint256'
+            }
+          ],
+          EIP712Domain: [
+            {
+              name: 'name',
+              type: 'string'
+            },
+            {
+              name: 'version',
+              type: 'string'
+            },
+            {
+              name: 'chainId',
+              type: 'uint256'
+            },
+            {
+              name: 'verifyingContract',
+              type: 'address'
+            }
+          ]
+        },
+        domain: {
+          name: 'MarketGateway',
+          version: '1',
+          chainId: '2020',
+          verifyingContract: CONTRACT_MARKETPLACE_V2_ADDRESS
+        },
+        primaryType: 'Order',
+        message: {
+          maker: address,
+          kind: '1',
+          assets: [
+            {
+              erc: '1',
+              addr: CONTRACT_AXIE_ADDRESS,
+              id: axieId,
+              quantity: '0'
+            }
+          ],
+          expiredAt,
+          paymentToken: CONTRACT_WETH_ADDRESS,
+          startedAt,
+          basePrice: '500000000000000000',
+          endedAt: '0',
+          endedPrice: '0',
+          expectedState: '0',
+          nonce: '0',
+          marketFeePercentage: '425'
+        }
+      }
+
+      // sign the trasaction, we need to call eth_signTypedData_v4 EPI721
+      const signature = await hre.ethers.provider.send('eth_signTypedData_v4', [address, JSON.stringify(message)])
+
+      const query = `
+        mutation CreateOrder($order: InputOrder!, $signature: String!) {
+          createOrder(order: $order, signature: $signature) {
+            ...OrderInfo
+            __typename
+          }
+        }
+        fragment OrderInfo on Order {
+          id
+          maker
+          kind
+          assets {
+            ...AssetInfo
+            __typename
+          }
+          expiredAt
+          paymentToken
+          startedAt
+          basePrice
+          endedAt
+          endedPrice
+          expectedState
+          nonce
+          marketFeePercentage
+          signature
+          hash
+          duration
+          timeLeft
+          currentPrice
+          suggestedPrice
+          currentPriceUsd
+          __typename
+        }
+        fragment AssetInfo on Asset {
+          erc
+          address
+          id
+          quantity
+          orderId
+          __typename
+        }
+      `
+      const variables = {
+        order: {
+          nonce: 0,
+          assets: [
+            {
+              id: axieId.toString(),
+              address: CONTRACT_AXIE_ADDRESS,
+              erc: 'Erc721',
+              quantity: '0'
+            }
+          ],
+          basePrice,
+          endedPrice: '0',
+          startedAt,
+          endedAt: 0,
+          expiredAt
+        },
+        signature
+      }
+
+      // todo: generate token or move to env
+      const headers = {
+        authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiIsInNpZCI6ODg2MTE4MDIsInJvbGVzIjpbInVzZXIiXSwic2NwIjpbImFsbCJdLCJhY3RpdmF0ZWQiOnRydWUsImFjdCI6dHJ1ZSwicm9uaW5BZGRyZXNzIjoiMHgwMGMyOTQ4NTlmY2Y2MTgyNmQ4NThmMzQ5Njk3NzY0ODY0MzM5ZmY3IiwiZXhwIjoxNjY5MDQ2NDYwLCJpYXQiOjE2Njc4MzY4NjAsImlzcyI6IkF4aWVJbmZpbml0eSIsInN1YiI6IjFlZDUyZjBlLTIzMmUtNjJiMy04NjMzLTQ5YzUyYTNmYTg5ZiJ9.JJTY5W2yFWi_bxp45i-itLTsHVXCHw5eCgaM5oTu3tA'
+      }
+
+      const result = await fetchApi(query, variables, headers)
+      // console.log('result', result)
+
+      if (result.errors !== undefined) {
+        throw new Error(result.errors[0].message)
+      }
+
+      // create the activity
+      const activityQuery = `mutation AddActivity($action: Action!, $data: ActivityDataInput!) {
+        createActivity(action: $action, data: $data) {
+          result
+          __typename
+        }
+      }`
+
+      const activityVariables = {
+        action: 'ListAxie',
+        data: {
+          axieId: axieId.toString(),
+          priceFrom: basePrice,
+          priceTo: basePrice,
+          duration: '86400', // todo: calculate duration
+          txHash: result.data.createOrder.hash
+        }
+      }
+
+      const activityResult = await fetchApi(activityQuery, activityVariables, headers)
+      console.log('activityResult', activityResult)
+    } catch (error) {
+      console.error(error)
+      throw error
     }
   })
 
