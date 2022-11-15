@@ -60,12 +60,20 @@ export interface ITriggerOrder {
 }
 
 export interface MarketPropsInterface {
-  class: string[]
-  part: string[]
-  triggerPrice: string
-  breedCount: string[]
-  pureness: string[]
+  classes?: string[]
+  parts?: string[]
+  triggerPrice?: string
+  breedCount?: string[]
+  pureness?: string[]
+  excludeParts?: string[]
   // [key: string]: any
+}
+
+export interface Criteria {
+  classes?: string[]
+  parts?: string[]
+  breedCount?: number[]
+  pureness?: number[]
 }
 
 export function VerifyDiscordRequest(clientKey: string) {
@@ -130,13 +138,6 @@ export async function fetchApi(query: string, variables: { [key: string]: any },
   }
 }
 
-interface Criteria {
-  classes?: string[]
-  parts?: string[]
-  breedCount?: number[]
-  pureness?: number[]
-}
-
 export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Promise<ITriggerOrder[]> {
   // console.log('fetchMarketResultsByOrder', marketOrder)
   const marketProps = marketOrder.marketProps
@@ -198,31 +199,44 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
     }
   `
   const criteria: Criteria = {}
+
+  // validate the marketProps, not the same as the graphql criteria
+  if (marketProps.classes !== undefined) {
+    criteria.classes = marketProps.classes
+  }
+
+  if (marketProps.parts !== undefined) {
+    criteria.parts = marketProps.parts
+  }
+
+  if (marketProps.breedCount !== undefined && marketProps.breedCount !== undefined) {
+    // convert strings in the array to numbers
+    criteria.breedCount = marketProps.breedCount?.map((item) => parseInt(item, 10))
+  }
+
+  if (marketProps.pureness !== undefined) {
+    // convert strings in the array to numbers
+    criteria.pureness = marketProps.pureness.map((item) => parseInt(item, 10))
+  }
+
+  if (marketProps.excludeParts !== undefined) {
+    for (const part of marketProps.excludeParts) {
+      if (criteria.parts?.includes(part) === true) {
+        criteria.parts[criteria.parts.indexOf(part)] = `!${part}`
+      } else {
+        criteria.parts?.push(`!${part}`)
+      }
+    }
+  }
+
+  // console.log('criteria', criteria)
+
   const variables = {
     from: 0,
     size: 10, // total of results, max 100
     sort: 'PriceAsc',
     auctionType: 'Sale',
     criteria
-  }
-
-  // validate the marketProps, not the same as the graphql criteria
-  if (marketProps.class?.length > 0) {
-    criteria.classes = marketProps.class
-  }
-
-  if (marketProps.part?.length > 0) {
-    criteria.parts = marketProps.part
-  }
-
-  if (marketProps.breedCount?.length > 0 && marketProps.breedCount?.length > 0) {
-    // convert strings in the array to numbers
-    criteria.breedCount = marketProps.breedCount.map((item) => parseInt(item, 10))
-  }
-
-  if (marketProps.pureness?.length > 0) {
-    // convert strings in the array to numbers
-    criteria.pureness = marketProps.pureness.map((item) => parseInt(item, 10))
   }
 
   // get results from the market
@@ -251,8 +265,8 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
       console.log(`--new floor price ${floorPrice}`)
       console.log(`--trigger price   ${ethers.utils.formatEther(triggerPrice)}`)
       console.log(`--diff            ${ethers.utils.formatEther(ethers.BigNumber.from(ethers.utils.parseUnits(floorPrice, 'ether')).sub(triggerPrice))}`)
-      // todo: calculage gap % with the other results, to see if it's worth it
-      // todo: send a message to notify the floor price
+      // idea: send a message to notify the floor price
+      // idea: calculage gap % with the other results, to see if it's worth it
       marketOrder.floorPrice = floorPrice
       void updateMarketOrderFloorPrice(marketOrder)
     }
@@ -262,14 +276,6 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
       const { order } = result
       const axieId = order.assets[0].id as string
       const currentPrice = ethers.BigNumber.from(order.currentPrice)
-      // const expiredAt = result.order.expiredAt;
-      // const startedAt = result.order.startedAt;
-      // const basePrice = result.order.basePrice;
-      // const endedAt = result.order.endedAt;
-      // const endedPrice = result.order.endedPrice;
-      // const duration = result.order.duration;
-      // const timeLeft = result.order.timeLeft;
-      // const suggestedPrice = result.order.suggestedPrice;
 
       if (triggerPrice.gte(currentPrice)) {
         orders.push({
