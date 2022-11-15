@@ -1,56 +1,174 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import { InteractionResponseType } from 'discord-interactions'
+import { ethers } from 'ethers'
 import { fetchApi } from '../utils'
 
 export default async function handleAxieCommand(axieId: string, res: any): Promise<any> {
   // Send a simple query to the graphql api to get the axie data
   const query = `query GetAxieDetail($axieId: ID!) {
       axie(axieId: $axieId) {
+        ...AxieDetail
+      }
+    }
+    
+    fragment AxieDetail on Axie {
+      id
+      image
+      class
+      chain
+      name
+      genes
+      newGenes
+      owner
+      birthDate
+      bodyShape
+      class
+      sireId
+      sireClass
+      matronId
+      matronClass
+      stage
+      title
+      breedCount
+      level
+      figure {
+        atlas
+        model
+        image
+      }
+      parts {
+        ...AxiePart
+      }
+      stats {
+        ...AxieStats
+      }
+      order {
+        ...OrderInfo
+      }
+      ownerProfile {
+        name
+      }
+      battleInfo {
+        ...AxieBattleInfo
+      }
+      children {
         id
         name
-        owner
-        genes
-        newGenes
         class
-        breedCount
-        parts {
-            id
-            name
-            class
-            type
-        }
-        stats {
-            hp
-            speed
-            skill
-            morale
-        }
-        battleInfo {
-            banned
-            banUntil
-            level
-        }
+        image
+        title
+        stage
       }
+      potentialPoints {
+        beast
+        aquatic
+        plant
+        bug
+        bird
+        reptile
+        mech
+        dawn
+        dusk
+      }
+    }
+    
+    fragment AxieBattleInfo on AxieBattleInfo {
+      banned
+      banUntil
+      level
+    }
+    
+    fragment AxiePart on AxiePart {
+      id
+      name
+      class
+      type
+      specialGenes
+      stage
+    }
+    
+    fragment AxieStats on AxieStats {
+      hp
+      speed
+      skill
+      morale
+    }
+    
+    fragment OrderInfo on Order {
+      id
+      maker
+      kind
+      assets {
+        ...AssetInfo
+      }
+      expiredAt
+      paymentToken
+      startedAt
+      basePrice
+      endedAt
+      endedPrice
+      expectedState
+      nonce
+      marketFeePercentage
+      signature
+      hash
+      duration
+      timeLeft
+      currentPrice
+      suggestedPrice
+      currentPriceUsd
+    }
+    
+    fragment AssetInfo on Asset {
+      erc
+      address
+      id
+      quantity
+      orderId
     }
   `
   const variables = {
     axieId
   }
 
-  let content = 'Axie not found'
+  let content = ''
   let embeds = null
 
   try {
     const res = await fetchApi(query, variables)
-    console.log(res?.data?.axie)
-    if (res?.data?.axie) {
+    if (res?.data?.axie !== null) {
       const axie = res?.data?.axie
-      content = ''
-      // **${axie.name}**`
-      // Class: ${axie.class}
-      // Owner: ${axie.owner}
-      // Link: https://marketplace.axieinfinity.com/axie/${axie.id}
+      console.log(axie)
+
+      content = content + `**Class:** ${axie.class}`
+      content = content + `\n**Breed Count:** ${axie.breedCount}`
+      const pureness = axie.parts.filter((part: any) => part.class === axie.class).length
+      content = content + `\n**Pureness:** ${pureness}`
+
+      if (axie.order !== null) {
+        const currentPrice = ethers.utils.formatEther(axie.order.currentPrice)
+        content = content + `\n**On Sale:** Ξ${currentPrice} (${axie.order.currentPriceUsd} USD)`
+        content = content + `\nhttps://marketplace.axieinfinity.com/axie/${axie.id}`
+      }
+
+      // todo: generate origin stats, based on parts and current cards stats
+      // const originStats: { energy: number, damage: number, shield:number, heal: number } = axie.stats
+
+      // todo: generate custom origin tags, based on parts and current cards stats, ej: offensive, deffeensive, retain, curse, support
+      // const originTags: [string] =
+
+      content = content + `\n\r**Parts:**\n${axie.parts.map((part: {
+        id: string
+        name: string
+        class: string
+        type: string
+      }) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
+      // content = content + `\n\r**Origin Stats:**\n`
+      content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key]}`).join('\n')}`
+      content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key]}`).join('\n')}`
+      content = content + `\n\r**Owner:** ${axie.ownerProfile?.name ?? 'Unknown'}`
+      // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
+      content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
 
       // custom embed color by axie class
       let color
@@ -87,14 +205,10 @@ export default async function handleAxieCommand(axieId: string, res: any): Promi
           break
       }
 
-      // todo: parse axie parts and stats
-      // const axieGenes = axie.newGenes
-      // todo: get estimated price from the marketplace if its for sale
-
       embeds = [
         {
           title: `Axie #${axie.id}`,
-          description: `**${axie.name}**\nMarket:\nhttps://marketplace.axieinfinity.com/axie/${axie.id}\nOwner:\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`,
+          description: content,
           thumbnail: {
             url: `https://axiecdn.axieinfinity.com/axies/${axie.id}/axie/axie-full-transparent.png`
           },
@@ -110,7 +224,7 @@ export default async function handleAxieCommand(axieId: string, res: any): Promi
   return res.send({
     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
     data: {
-      content,
+      content: '',
       embeds
     }
   })
