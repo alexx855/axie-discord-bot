@@ -1,6 +1,6 @@
-# Discord bot that can be used to automatically buy Axies from the marketplace based on the given criteria.
-## It can also be used to list/unlist Axies on the marketplace through hardhat tasks.
-||||
+# Discord bot that automatically buy Axies from the marketplace based on the given criteria.
+## It can also be used to sell (list/unlist) Axies on the marketplace through the hardhat tasks.
+|/axie|/add order|/get and remove orders|
 |-|-|-|
 |[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png) |
 
