@@ -1,20 +1,29 @@
-# setup
-configure your custom env keys and tokens
+# Discord bot that can be used to automatically buy Axies from the marketplace based on the given criteria.
+## It can also be used to list/unlist Axies on the marketplace through hardhat tasks.
+||||
+|-|-|-|
+|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png) |
+
+### Setup
+Configure your custom env keys and tokens
+https://discord.com/developers/docs/intro
+https://hardhat.org/docs
 ```bash
 cp .env.example .env
 ```
 
-## start bot and db using docker compose, or the devcontainer
-https://code.visualstudio.com/docs/devcontainers/containers
+### Start node bot and redis from docker compose
+(Optional) if you want to use the devcontainer https://code.visualstudio.com/docs/devcontainers/containers
 ```bash
 docker compose up
 ```
-### hardhat tasks
+
+### Hardhat tasks
 - *account* - list account balances
 - *generate-access-token* - generate marketplace access token
 - *list* - list an axie on the marketplace (requires access token)
 - *unlist* - unlist an axie on the marketplace
-- *buy* - buy an axie on the marketplace
+- *buy* - buy an axie on the marketplace (requires a JSON order from the marketplace)
 
 ```bash
 npx hardhat accounts
@@ -24,9 +33,9 @@ npx hardhat unlist --axie $AXIE_ID
 npx hardhat buy --order JSON.stringify(ITriggerOrder)
 ```
 
-### discord bot commands:
-- */axie* $AXIE_ID Get axie info
-- */add_order* Automatically buy axies by filters from the marketplace url 
-- */add_order* Automatically buy axies by filters from the marketplace url 
-- */get_orders* Get open orders
-- */remove_order* $ORDER_ID Remove order
+### Discord bot commands:
+- */axie $AXIE_ID* - Get axie info
+- */add_order* - Create an order that automatically buy axie's based on the given price and the marketplace url filters 
+- */get_orders* - Get open orders, this how you get the order ID
+- */remove_order $ORDER_ID* - Remove order by ID
+- **TODO: /list - List axie's on the marketplace**
