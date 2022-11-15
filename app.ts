@@ -61,8 +61,7 @@ app.post('/interactions', async (req, res) => {
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data
-    console.log(data)
-    // const userId = data.member.user.id
+
     console.log('Command name:', name)
     if (name === 'axie') {
       // Send a message into the channel where command was triggered from
@@ -70,31 +69,36 @@ app.post('/interactions', async (req, res) => {
       return await handleAxieCommand(axieId, res)
     }
 
+    // Check for admin, if not admin, return
+    const userId: string = req.body?.member?.user?.id
+    const adminId: string = process.env.DISCORD_USER_ID ?? ''
+    if (userId !== adminId) {
+      return res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: 'Only admin'
+        }
+      })
+    }
+
     if (name === 'get_orders') {
-      const userId: string = req.body.member.user.id
-
-      // todo: validate user id, it should be admin
-      console.log('User ID:', userId)
-
       // Get orders from redis
       const orders = await getMarketOrders()
       let content = ''
 
       if (orders.length > 0) {
         console.log('orders', orders)
-        content = `<@${userId}> has the following open order${orders.length > 1 ? 's' : ''} :\r\n`
+        content = `I've the following open order${orders.length > 1 ? 's' : ''}:\r\n`
 
         for (const order of orders) {
-          content = content + 'Order ' + order.id.toString() + '\nTrigger price: ' + order.triggerPrice.toString() + ' \n'
-          // add show original props
+          content = content + 'Order ID: **' + order.id.toString() + '**\nTrigger price: ' + order.triggerPrice.toString() + ' \n'
           content = content + order.marketUrl + '\n'
-          // add a separator line, if not the last order
           if (order !== orders[orders.length - 1]) {
             content = content + '------------------------\r\n'
           }
         }
       } else {
-        content = `<@${userId}> you have no orders.\nUse **/add_order** to add one.`
+        content = 'I\'ve no open orders.\nUse **/add_order** to add one.'
       }
 
       // Send a message into the channel where command was triggered from
@@ -108,22 +112,20 @@ app.post('/interactions', async (req, res) => {
 
     if (name === 'remove_order') {
       // Get orders date from options value, it's the id of the order, shame on me (┬┬﹏┬┬)
-      const orderDate = data.options[0].value as string
+      const orderID = data.options[0].value as string
       // Default response
-      let content = `Order ${orderDate} not found`
+      let content = `Order ID: **${orderID}** not found`
       // Check if order exists, get current orders list
       const orders = await getMarketOrders()
       // Check if order exists
       const orderIndex = orders.findIndex(
-        (order) => order.id.toString() === orderDate
+        (order) => order.id.toString() === orderID
       )
       if (orderIndex !== -1) {
         // Remove the order
         orders.splice(orderIndex, 1)
-        // Save orders
         await setMarketOrders(orders)
-        // Set content
-        content = `Order ${orderDate} removed`
+        content = `Order ID: **${orderID}** removed`
       }
       // Send a message into the channel where command was triggered from
       return res.send({
@@ -135,14 +137,12 @@ app.post('/interactions', async (req, res) => {
     }
 
     if (data.name === 'add_order') {
-      // todo: check if user can add order
-
       // Send a modal as response
       return res.send({
         type: InteractionResponseType.APPLICATION_MODAL,
         data: {
           custom_id: 'add_order_modal',
-          title: 'Modal title',
+          title: 'Add Order',
           components: [
             {
               // Text inputs must be inside of an action component
@@ -211,6 +211,7 @@ app.post('/interactions', async (req, res) => {
         ''
       ).split('?')[1]?.split('&')
 
+      // todo: check if the props are valid
       // group the same props by key, keep values
       const marketPropsGrouped: MarketPropsInterface =
           marketPropsArray.reduce((acc: any, curr) => {
@@ -223,16 +224,6 @@ app.post('/interactions', async (req, res) => {
             }
             return acc
           }, {})
-
-      // // todo: check if the props are valid, create interface for props
-      // if (marketPropsArray.length === 0) {
-      //   return res.send({
-      //     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-      //     data: {
-      //       content: 'Invalid market props'
-      //     }
-      //   })
-      // }
 
       // get and parse trigger price
       const priceFromModal = ethers.utils.parseUnits(data.components[1].components[0].value, 'ether')
