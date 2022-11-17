@@ -4,7 +4,8 @@ import {
   CONTRACT_MARKETPLACE_V2_ADDRESS,
   CONTRACT_WETH_ADDRESS,
   CONTRACT_WETH_ABI_JSON_PATH,
-  CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH
+  CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH,
+  DEFAULT_GAS_LIMIT
 } from './constants'
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
@@ -78,7 +79,7 @@ task('buy', 'Buy and axie from the marketplace')
       if (!allowance.gte(0)) {
         // same amount as the ronin wallet approval, got it from there
         const amountToapproved = '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-        const txApproveWETH = await wethContract.approve(address, amountToapproved)
+        const txApproveWETH = await wethContract.approve(address, amountToapproved, { gasLimit: DEFAULT_GAS_LIMIT })
         console.log('txApproveWETH', txApproveWETH.hash)
 
         console.log('Need approve the marketplace contract to transfer WETH, no allowance')
@@ -114,7 +115,8 @@ task('buy', 'Buy and axie from the marketplace')
         ]
       )
 
-      const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
+      // const gasPrice = (await hre.ethers.provider.getGasPrice()).toNumber()
+      const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData, { gasLimit: DEFAULT_GAS_LIMIT })
       // console.log('txBuyAxie', txBuyAxie)
 
       // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
@@ -252,7 +254,7 @@ task('unlist', 'Unlist an axie on the marketplace')
         ]
       )
 
-      const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData)
+      const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData, { gasLimit: DEFAULT_GAS_LIMIT })
       console.log(txUnlistAxie.hash)
       return txUnlistAxie.hash
     } catch (error) {

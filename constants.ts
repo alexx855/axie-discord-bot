@@ -30,6 +30,8 @@ export const CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH = 'abis/market_v2.json'
 
 export const GRAPHQL_URL = 'https://graphql-gateway.axieinfinity.com/graphql'
 
+export const DEFAULT_GAS_LIMIT = 481338 // 481338 default gas limit for track usage
+
 // Command that returns custom axie data, like estimated price
 export const AXIE_COMMAND = {
   name: 'axie',
