@@ -536,7 +536,8 @@ task('list', 'List an axie on the marketplace')
       }
 
       const activityResult = await fetchApi(activityQuery, activityVariables, headers)
-      console.log('activityResult', activityResult)
+      // console.log('activityResult', activityResult)
+      console.log('Axie listed successfully')
       return activityResult.data?.createActivity?.result === true
     } catch (error) {
       console.error(error)

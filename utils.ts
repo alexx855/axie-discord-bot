@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
-import * as dotenv from 'dotenv'
-
 import { verifyKey } from 'discord-interactions'
 import { GRAPHQL_URL } from './constants'
 import { ethers } from 'ethers'
 import { createClient } from 'redis'
-import { Client } from 'pg'
+// import { Client } from 'pg'
+
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // redis client
@@ -20,15 +20,15 @@ export const redisClient = createClient({
 // redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
 
 // postgres client
-export const postgresClient = new Client(
-  {
-    user: process.env.POSTGRES_USER ?? 'postgres',
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    database: process.env.POSTGRES_DB ?? 'axiebot',
-    password: process.env.POSTGRES_PASSWORD ?? 'password',
-    port: 5432
-  }
-).on('error', (err) => console.log('Postgres postgresClient Error', err))
+// export const postgresClient = new Client(
+//   {
+//     user: process.env.POSTGRES_USER ?? 'postgres',
+//     host: process.env.POSTGRES_HOST ?? 'localhost',
+//     database: process.env.POSTGRES_DB ?? 'axiebot',
+//     password: process.env.POSTGRES_PASSWORD ?? 'password',
+//     port: 5432
+//   }
+// ).on('error', (err) => console.log('Postgres postgresClient Error', err))
 // postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export interface IMarketOrder {
@@ -62,7 +62,6 @@ export interface ITriggerOrder {
 export interface MarketPropsInterface {
   classes?: string[]
   parts?: string[]
-  triggerPrice?: string
   breedCount?: string[]
   pureness?: string[]
   excludeParts?: string[]
@@ -243,36 +242,33 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
   const res = await fetchApi(query, variables)
   // console.log('res', res)
   if (res.data?.axies?.total > 0) {
+    const results = res.data.axies.results
+    // no need for this, we always want the cheapest axie
     // const total = res.data.axies.total
-    // console.log('total', total)
-
-    // todo: re enable
-    // // if there are more than 100, interate over the pages
     // while (total > results.length) {
     //   variables.from += 100
     //   const res = await fetchApi(query, variables)
     //   results.push(...res.axies.results)
     //   // await some time to avoid rate limit
-    //   await new Promise(resolve => setTimeout(resolve, 1000))
+    //   await new Promise(resolve => setTimeout(resolve, 200))
     // }
 
     const triggerPrice = ethers.BigNumber.from(ethers.utils.parseUnits(marketOrder.triggerPrice, 'ether'))
 
     // save floor price
-    const floorPrice = ethers.utils.formatEther(res.data.axies.results[0].order.currentPrice)
+    const floorPrice = ethers.utils.formatEther(results[0].order.currentPrice)
     // if floor price different than the one in the database, update it
     if (floorPrice !== marketOrder.floorPrice) {
-      console.log(`--new floor price ${floorPrice}`)
-      console.log(`--trigger price   ${ethers.utils.formatEther(triggerPrice)}`)
-      console.log(`--diff            ${ethers.utils.formatEther(ethers.BigNumber.from(ethers.utils.parseUnits(floorPrice, 'ether')).sub(triggerPrice))}`)
-      // idea: send a message to notify the floor price
-      // idea: calculage gap % with the other results, to see if it's worth it
+      // console.log(`--new floor price ${floorPrice}`)
+      // console.log(`--trigger price   ${ethers.utils.formatEther(triggerPrice)}`)
+      // console.log(`--diff            ${ethers.utils.formatEther(ethers.BigNumber.from(ethers.utils.parseUnits(floorPrice, 'ether')).sub(triggerPrice))}`)
+      // todo: send a message to notify the new floor price, if it threshold is reached
       marketOrder.floorPrice = floorPrice
       void updateMarketOrderFloorPrice(marketOrder)
     }
 
     // process the results and check if some meet the market criteria
-    for (const result of res.data.axies.results) {
+    for (const result of results) {
       const { order } = result
       const axieId = order.assets[0].id as string
       const currentPrice = ethers.BigNumber.from(order.currentPrice)
@@ -406,7 +402,7 @@ async function HasGuildCommand(
           console.error('Error installing command:', err)
         })
       }
-      // Uncomment this to update commands
+      // Uncomment this to update commands if you change something like the modal
       // else {
       //   console.log(`"${command.name}" command already installed`)
       //   // Update command

@@ -39,3 +39,4 @@ npx hardhat buy --order JSON.stringify(ITriggerOrder)
 - */get_orders* - Get open orders, this how you get the order ID
 - */remove_order $ORDER_ID* - Remove order by ID
 - **TODO: /list - List axie's on the marketplace**
+- **TODO: /unlist - batch unlist axies auctions**
