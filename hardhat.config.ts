@@ -21,13 +21,14 @@ export interface Asset {
 
 task('buy', 'Buy and axie from the marketplace')
   .addParam('order', 'The trigger order object to trigger')
-  .setAction(async (taskArgs: { order: string }, hre) => {
+  .setAction(async (taskArgs: { order: string }, hre): Promise<boolean | string> => {
     try {
       const order: ITriggerOrder = JSON.parse(taskArgs.order)
 
       const axieId = parseInt(order.axieId, 10)
       if (isNaN(axieId)) {
-        throw new Error('Invalid Axie ID provided')
+        console.log('Invalid Axie ID provided')
+        return false
       }
 
       const accounts = await hre.ethers.getSigners()
@@ -45,7 +46,8 @@ task('buy', 'Buy and axie from the marketplace')
       // check if the account has given approval to the marketplace contract to transfer the axie
       const isApproved: boolean = await axieContract.isApprovedForAll(address, CONTRACT_MARKETPLACE_V2_ADDRESS)
       if (!isApproved) {
-        throw new Error('Please approve the marketplace contract to transfer the axie')
+        console.log('Please approve the marketplace contract to transfer the axie')
+        return false
       }
 
       // get marketplace contract
@@ -60,7 +62,8 @@ task('buy', 'Buy and axie from the marketplace')
       const balance = await hre.ethers.provider.getBalance(address)
       const currentPrice = hre.ethers.BigNumber.from(order.currentPrice)
       if (currentPrice.gte(balance)) {
-        throw new Error('Not enough balance')
+        console.log('Not enough balance')
+        return false
       }
 
       // approve WETH Contract to transfer WETH from the account
@@ -78,7 +81,8 @@ task('buy', 'Buy and axie from the marketplace')
         const txApproveWETH = await wethContract.approve(address, amountToapproved)
         console.log('txApproveWETH', txApproveWETH.hash)
 
-        throw new Error('Need approve the marketplace contract to transfer WETH, no allowance')
+        console.log('Need approve the marketplace contract to transfer WETH, no allowance')
+        return false
       }
 
       // create the order data
@@ -110,27 +114,29 @@ task('buy', 'Buy and axie from the marketplace')
         ]
       )
 
-      const txBuyAxie: any = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
+      const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData)
       // console.log('txBuyAxie', txBuyAxie)
 
       // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
       // ?? todo: validate that we're the owners of the axie now, with a rpc call to the contract
 
-      return txBuyAxie.hash
+      return txBuyAxie.hash as string
     } catch (error) {
       console.error(error)
-      throw error
+      return false
     }
   })
 
 task('unlist', 'Unlist an axie on the marketplace')
   .addParam('axie', 'The axie ID without #')
-  .setAction(async (taskArgs: { axie: string }, hre) => {
+  .setAction(async (taskArgs: { axie: string }, hre): Promise<boolean | string> => {
     try {
       const axieId = parseInt(taskArgs.axie, 10)
       if (isNaN(axieId)) {
-        throw new Error('Invalid Axie ID provided')
+        console.log('Invalid Axie ID provided')
+        return false
       }
+
       // query the marketplace for the axie order
       const query = `
           query GetAxieDetail($axieId: ID!) {
@@ -175,17 +181,50 @@ task('unlist', 'Unlist an axie on the marketplace')
         axieId
       }
 
-      const result = await fetchApi(query, variables)
-      const order: any | null = result?.data?.axie?.order
-      if (order === null) {
-        throw new Error('Axie is not listed on the marketplace')
+      interface IAxieOrder {
+        id: string
+        maker: string
+        kind: number
+        assets: Array<{
+          erc: number
+          address: string
+          id: string
+          quantity: string
+          orderId: string
+        }>
+        expiredAt: string
+        paymentToken: string
+        startedAt: string
+        basePrice: string
+        endedAt: string
+        endedPrice: string
+        expectedState: number
+        nonce: string
+        marketFeePercentage: number
+        signature: string
+        hash: string
+        duration: number
+        timeLeft: number
+        currentPrice: string
+        suggestedPrice: string
+        currentPriceUsd: string
       }
+      const result = await fetchApi(query, variables)
+      const order: IAxieOrder | null = result?.data?.axie?.order
+      if (order === null) {
+        console.log('Axie is not listed on the marketplace')
+        return false
+      }
+
+      const accounts = await hre.ethers.getSigners()
+      const signer = accounts[0]
 
       // get marketplace contract
       const marketAbi = JSON.parse(await fs.readFile(CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH, 'utf8'))
       const marketplaceContract = await new hre.ethers.Contract(
+        CONTRACT_MARKETPLACE_V2_ADDRESS,
         marketAbi,
-        CONTRACT_MARKETPLACE_V2_ADDRESS
+        signer
       )
 
       // create the cancel order data
@@ -214,10 +253,11 @@ task('unlist', 'Unlist an axie on the marketplace')
       )
 
       const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData)
-      console.log('txUnlistAxie', txUnlistAxie.hash)
+      console.log(txUnlistAxie.hash)
       return txUnlistAxie.hash
     } catch (error) {
       console.error(error)
+      return false
     }
   })
 
@@ -230,13 +270,15 @@ task('list', 'List an axie on the marketplace')
   .setAction(async (taskArgs: {
     axie: string
     basePrice: string
+    accessToken: string
     endedPrice?: string
     duration?: string
-    accessToken: string
-  }, hre) => {
+    gasLimit?: number
+  }, hre): Promise<boolean> => {
     try {
       if (!hre.ethers.utils.parseUnits(taskArgs.basePrice, 'ether')._isBigNumber) {
-        throw new Error('Invalid basePrice provided')
+        console.log('Invalid basePrice provided')
+        return false
       }
       const basePrice = hre.ethers.utils.parseUnits(taskArgs.basePrice, 'ether').toString()
       const accessToken = taskArgs.accessToken
@@ -246,7 +288,8 @@ task('list', 'List an axie on the marketplace')
 
       const axieId = parseInt(taskArgs.axie, 10)
       if (isNaN(axieId)) {
-        throw new Error('Invalid Axie ID provided')
+        console.log('Invalid Axie ID provided')
+        return false
       }
 
       // get current block timestamp
@@ -257,7 +300,8 @@ task('list', 'List an axie on the marketplace')
       if (taskArgs.duration !== undefined) {
         duration = duration * parseInt(taskArgs.duration, 10)
         if (isNaN(duration)) {
-          throw new Error('Invalid duration provided')
+          console.log('Invalid duration provided')
+          return false
         }
         endedAt = startedAt + duration
       }
@@ -265,7 +309,8 @@ task('list', 'List an axie on the marketplace')
       let endedPrice
       if (taskArgs.endedPrice !== undefined) {
         if (!hre.ethers.utils.parseUnits(taskArgs.endedPrice, 'ether')._isBigNumber) {
-          throw new Error('Invalid endedPrice provided')
+          console.log('Invalid endedPrice provided')
+          return false
         }
         endedPrice = hre.ethers.utils.parseUnits(taskArgs.endedPrice, 'ether').toString()
       } else {
@@ -465,7 +510,8 @@ task('list', 'List an axie on the marketplace')
       const result = await fetchApi(query, variables, headers)
       // console.log('result', result)
       if (result.errors !== undefined) {
-        throw new Error(result.errors[0].message)
+        console.log(result.errors[0].message)
+        return false
       }
 
       // create the activity
@@ -476,26 +522,27 @@ task('list', 'List an axie on the marketplace')
         }
       }`
 
-      const activityVariables = {
+      const activityVariables: Object = {
         action: 'ListAxie',
         data: {
           axieId: axieId.toString(),
           priceFrom: basePrice,
           priceTo: endedPrice,
           duration: duration.toString(),
-          txHash: result.data.createOrder.hash
+          txHash: result.data.createOrder.hash as string
         }
       }
 
       const activityResult = await fetchApi(activityQuery, activityVariables, headers)
       console.log('activityResult', activityResult)
+      return activityResult.data?.createActivity?.result === true
     } catch (error) {
       console.error(error)
-      throw error
+      return false
     }
   })
 
-task('generate-access-token', 'Generate marketplace access token', async (taskArgs, hre) => {
+task('generate-access-token', 'Generate marketplace access token', async (taskArgs, hre): Promise<string> => {
   try {
     const accounts = await hre.ethers.getSigners()
     const signer = accounts[0]
@@ -504,10 +551,11 @@ task('generate-access-token', 'Generate marketplace access token', async (taskAr
     const message = await getRandomMessage()
     const signature = await signer.signMessage(message)
     const token = await createAccessTokenWithSignature(address, message, signature)
+    console.log(token)
     return token
   } catch (error) {
     console.error(error)
-    throw error
+    return ''
   }
 })
 
