@@ -10,15 +10,13 @@ import {
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
-import { createAccessTokenWithSignature, fetchApi, getRandomMessage, ITriggerOrder } from './utils'
+import { createAccessTokenWithSignature, fetchApi, getRandomMessage } from './utils'
+import { IMarketBuyOrder } from './interfaces'
+
 import * as fs from 'fs/promises'
 
 import * as dotenv from 'dotenv'
 dotenv.config()
-
-export interface Asset {
-  [key: string]: any
-}
 
 task('buy', 'Buy and axie from the marketplace')
   // .addParam('order', 'The trigger order object to trigger')
@@ -26,7 +24,7 @@ task('buy', 'Buy and axie from the marketplace')
     // track time
     const startTime = Date.now()
     try {
-      const order: ITriggerOrder = JSON.parse(taskArgs.order)
+      const order: IMarketBuyOrder = JSON.parse(taskArgs.order)
 
       const axieId = parseInt(order.axieId, 10)
       if (isNaN(axieId)) {
@@ -119,8 +117,9 @@ task('buy', 'Buy and axie from the marketplace')
 
       // const gasPrice = (await hre.ethers.provider.getGasPrice()).toNumber()
       const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData, { gasLimit: DEFAULT_GAS_LIMIT })
-      // console.log('txBuyAxie', txBuyAxie)
-
+      const endTime = Date.now()
+      console.log('Time to buy', (endTime - startTime), 'ms')
+      console.log('txBuyAxie', txBuyAxie.hash)
       return txBuyAxie.hash as string
     } catch (error) {
       console.error(error)
@@ -623,7 +622,7 @@ task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
     const accounts = await hre.ethers.getSigners()
     const signer = accounts[0]
     const address = signer.address.toLowerCase()
-    console.log('Address', address)
+    console.log('Address:', address)
 
     // get RON balance
     const balance = await hre.ethers.provider.getBalance(address)

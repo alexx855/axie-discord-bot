@@ -30,7 +30,7 @@ npx hardhat accounts
 npx hardhat generate-access-token
 npx hardhat list --axie $AXIE_ID --base-price 0.1 --ended-price 0.2 --duration 1 --access-token $ACCESS_TOKEN
 npx hardhat unlist --axie $AXIE_ID 
-npx hardhat buy --order JSON.stringify(ITriggerOrder)
+npx hardhat buy --order JSON.stringify(IMarketBuyOrder)
 ```
 
 ### Discord bot commands:

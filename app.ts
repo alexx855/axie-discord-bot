@@ -11,22 +11,13 @@ import {
   InteractionResponseType,
   MessageComponentTypes
 } from 'discord-interactions'
-import {
-  MarketPropsInterface,
-  IMarketOrder,
-  VerifyDiscordRequest,
-  getMarketOrders,
-  setMarketOrders,
-  fetchMarketResultsByOrder,
-  removeMarketOrder,
-  addMarketOrder,
-  DiscordRequest,
-  HasGuildCommands
-} from './utils'
 import { ethers } from 'ethers'
 import { run, userConfig } from 'hardhat'
-import handleAxieCommand from './commands/axie'
+import getAxieEmbedDetails from './commands/axies'
 import { randomUUID } from 'crypto'
+import { MarketPropsInterface, IMarketOrder } from './interfaces'
+import { getMarketOrders, setMarketOrders, addMarketOrder, fetchMarketByOrder, removeMarketOrder } from './commands/market'
+import { VerifyDiscordRequest, HasGuildCommands, DiscordRequest } from './utils'
 
 import * as dotenv from 'dotenv'
 dotenv.config()
@@ -61,12 +52,26 @@ app.post('/interactions', async (req, res) => {
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data
-
     console.log('Command name:', name)
     if (name === 'axie') {
       // Send a message into the channel where command was triggered from
       const axieId = data.options[0].value as string
-      return await handleAxieCommand(axieId, res)
+      try {
+        const embed = await getAxieEmbedDetails(axieId)
+        console.log('Embeds:', embed)
+        const content = embed === false ? 'Axie not found' : ''
+        console.log('Content:', content)
+
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content,
+            embeds: [embed]
+          }
+        })
+      } catch (error) {
+        console.log('Error:', error)
+      }
     }
 
     // Check for admin, if not admin, return
@@ -274,9 +279,16 @@ app.post('/interactions', async (req, res) => {
 
 app.listen(PORT, async () => {
   console.log('Listening on port', PORT)
+  if (process.env.APP_ID === undefined || process.env.GUILD_ID === undefined) {
+    console.log('Missing env vars, exiting...')
+    process.exit(1)
+  }
+
+  const appId = process.env.APP_ID
+  const guildId = process.env.GUILD_ID
 
   // Check if guild commands are installed (if not, install them)
-  HasGuildCommands(process.env.APP_ID, process.env.GUILD_ID, [
+  HasGuildCommands(appId, guildId, [
     AXIE_COMMAND,
     GET_ORDERS_COMMAND,
     REMOVE_ORDER_COMMAND,
@@ -310,7 +322,7 @@ app.listen(PORT, async () => {
           // track order time
           const orderTime = Date.now()
           // get orders matches from Axies listing based on the given order
-          const results = await fetchMarketResultsByOrder(marketOrder)
+          const results = await fetchMarketByOrder(marketOrder)
 
           // check time, if the order is older than 3 seconds, skip it
           const orderTimeDiff = Date.now() - orderTime

@@ -1,68 +1,8 @@
 import { ethers } from 'ethers'
 import { fetchApi } from '../utils'
-interface IAxieEmbedDetails {
-  title: string
-  description: string
-  thumbnail: {
-    url: string
-  }
-  color: number
-  type: string
-}
-interface IAxieData {
-  data: {
-    axie: {
-      id: string
-      class: string
-      chain: string
-      name: string
-      newGenes: string
-      ownerProfile: {
-        name: string | null
-      }
-      breedCount: number
-      order: {
-        currentPrice: number
-        currentPriceUsd: number
-      } | null
-      owner: string
-      stats: {
-        hp: number
-        speed: number
-        skill: number
-        morale: number
-      }
-      potentialPoints: {
-        beast: number
-        aquatic: number
-        plant: number
-        bug: number
-        bird: number
-        reptile: number
-        mech: number
-        dawn: number
-        dusk: number
-      }
-      parts: Array<{
-        id: string
-        name: string
-        type: string
-        class: string
-        specialGenes: string
-        stage: number
-      }>
-      title: string
-      description: string
-      thumbnail: {
-        url: string
-      }
-      color: number
-      type: string
-    }
-  }
-}
+import { IDiscordEmbed } from '../interfaces'
 
-export default async function handleAxieCommand(axieId: string): Promise<false | IAxieEmbedDetails> {
+export default async function getAxieEmbedDetails(axieId: string): Promise<false | IDiscordEmbed> {
   // Send a simple query to the graphql api to get the axie data
   const query = `query GetAxieDetail($axieId: ID!) {
       axie(axieId: $axieId) {
@@ -186,6 +126,60 @@ export default async function handleAxieCommand(axieId: string): Promise<false |
       orderId
     }
   `
+
+  interface IAxieData {
+    data: {
+      axie: {
+        id: string
+        class: string
+        chain: string
+        name: string
+        newGenes: string
+        ownerProfile: {
+          name: string | null
+        }
+        breedCount: number
+        order: {
+          currentPrice: number
+          currentPriceUsd: number
+        } | null
+        owner: string
+        stats: {
+          hp: number
+          speed: number
+          skill: number
+          morale: number
+        }
+        potentialPoints: {
+          beast: number
+          aquatic: number
+          plant: number
+          bug: number
+          bird: number
+          reptile: number
+          mech: number
+          dawn: number
+          dusk: number
+        }
+        parts: Array<{
+          id: string
+          name: string
+          type: string
+          class: string
+          specialGenes: string
+          stage: number
+        }>
+        title: string
+        description: string
+        thumbnail: {
+          url: string
+        }
+        color: number
+        type: string
+      }
+    }
+  }
+
   const variables = {
     axieId
   }
@@ -249,7 +243,7 @@ export default async function handleAxieCommand(axieId: string): Promise<false |
           color = 0xffffff
           break
       }
-      const embed: IAxieEmbedDetails = {
+      const embed: IDiscordEmbed = {
         title: `Axie #${axie.id}`,
         description: content,
         thumbnail: {
