@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
-import { fetchApi } from '../utils'
-import { IDiscordEmbed } from '../interfaces'
+import { IDiscordEmbed } from './interfaces'
+import { fetchApi } from './utils'
 
 export default async function getAxieEmbedDetails(axieId: string): Promise<false | IDiscordEmbed> {
   // Send a simple query to the graphql api to get the axie data

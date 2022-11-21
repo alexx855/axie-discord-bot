@@ -1,3 +1,4 @@
+
 import {
   CONTRACT_AXIE_ADDRESS,
   CONTRACT_AXIE_ABI_JSON_PATH,
@@ -10,11 +11,9 @@ import {
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
-import { createAccessTokenWithSignature, fetchApi, getRandomMessage } from './utils'
-import { IMarketBuyOrder } from './interfaces'
-
+import { IMarketBuyOrder } from './src/interfaces'
+import { fetchApi, getRandomMessage, createAccessTokenWithSignature } from './src/utils'
 import * as fs from 'fs/promises'
-
 import * as dotenv from 'dotenv'
 dotenv.config()
 

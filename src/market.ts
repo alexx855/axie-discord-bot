@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
-import { IAsset, ICriteria, IMarketBuyOrder, IMarketOrder } from '../interfaces'
-import { fetchApi, redisClient } from '../utils'
+import { IMarketOrder, IMarketBuyOrder, IAsset, ICriteria } from './interfaces'
+import { fetchApi, redisClient } from './utils'
 
 export async function fetchMarketByOrder(marketOrder: IMarketOrder): Promise<IMarketBuyOrder[]> {
   // console.log('fetchMarketByOrder', marketOrder)

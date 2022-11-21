@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { verifyKey } from 'discord-interactions'
-import { GRAPHQL_URL } from './constants'
 import { ethers } from 'ethers'
 import { createClient } from 'redis'
 // import { Client } from 'pg'
 
 import * as dotenv from 'dotenv'
+import { GRAPHQL_URL } from '../constants'
 dotenv.config()
 
 // redis client

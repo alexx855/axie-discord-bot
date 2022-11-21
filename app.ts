@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-misused-promises */
 import {
   AXIE_COMMAND,
   GET_ORDERS_COMMAND,
@@ -12,12 +11,14 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import { ethers } from 'ethers'
-import { run, userConfig } from 'hardhat'
-import getAxieEmbedDetails from './commands/axies'
+import getAxieEmbedDetails from './src/axies'
 import { randomUUID } from 'crypto'
-import { MarketPropsInterface, IMarketOrder } from './interfaces'
-import { getMarketOrders, setMarketOrders, addMarketOrder, fetchMarketByOrder, removeMarketOrder } from './commands/market'
-import { VerifyDiscordRequest, HasGuildCommands, DiscordRequest } from './utils'
+import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
+import { getMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
+import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
+import { onBlock } from './src/onblock'
+import config from './hardhat.config'
+import { HttpNetworkUserConfig } from 'hardhat/types'
 
 import * as dotenv from 'dotenv'
 dotenv.config()
@@ -35,9 +36,11 @@ app.use(
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
  */
+// eslint-disable-next-line @typescript-eslint/no-misused-promises
 app.post('/interactions', async (req, res) => {
   // Interaction type and data
   const { type, data } = req.body
+  console.log('Received interaction', type, data)
 
   /**
    * Handle verification requests
@@ -58,9 +61,7 @@ app.post('/interactions', async (req, res) => {
       const axieId = data.options[0].value as string
       try {
         const embed = await getAxieEmbedDetails(axieId)
-        console.log('Embeds:', embed)
         const content = embed === false ? 'Axie not found' : ''
-        console.log('Content:', content)
 
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -277,10 +278,16 @@ app.post('/interactions', async (req, res) => {
   }
 })
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log('Listening on port', PORT)
   if (process.env.APP_ID === undefined || process.env.GUILD_ID === undefined) {
     console.log('Missing env vars, exiting...')
+    process.exit(1)
+  }
+
+  const { chainId, url } = config.networks?.ronin as HttpNetworkUserConfig
+  if (chainId === undefined || url === undefined) {
+    console.log('Missing network config, exiting...')
     process.exit(1)
   }
 
@@ -295,82 +302,21 @@ app.listen(PORT, async () => {
     ADD_ORDER_COMMAND
   ])
 
-  // track time, some blocks came almost at the same time
-  let time = Date.now()
-  const onBlock = async (blockNumber: number): Promise<void> => {
-    try {
-      const diff = Date.now() - time
-      time = Date.now()
-
-      // we got two block almost at the same time, skip this one
-      if (diff <= 1000) {
-        return
-      }
-
-      // todo: add env var to enable/disable this dev logs
-      console.log(`new block ${blockNumber} received after ${diff}ms`)
-
-      // get buy   orders from redis
-      const marketOrders = await getMarketOrders()
-
-      if (marketOrders.length > 0) {
-        for (let i = 0; i < marketOrders.length; i++) {
-          const marketOrder = marketOrders[i]
-          // console.log('marketOrder', marketOrder)
-          console.log(`checking order ${marketOrder.id} for user ${marketOrder.userId}`)
-
-          // track order time
-          const orderTime = Date.now()
-          // get orders matches from Axies listing based on the given order
-          const results = await fetchMarketByOrder(marketOrder)
-
-          // check time, if the order is older than 3 seconds, skip it
-          const orderTimeDiff = Date.now() - orderTime
-          if (orderTimeDiff > 3000) {
-            console.log(`order too old, skip it (${orderTimeDiff}ms)`)
-            continue
-          }
-
-          if (results.length > 0) {
-            // get only the first order, it should be the chepeast one
-            const order = results[0]
-
-            // remove the market order from the orders array, to prevent it from being executed again
-            await removeMarketOrder(marketOrder.id)
-
-            // call the hardhart task buy the, with the order as argument
-            const tx: string = await run('buy', { order: JSON.stringify(order) })
-            const txLink = `https://explorer.roninchain.com/tx/${tx}`
-
-            // send a message to the channel
-            const endpoint = `/channels/${process.env.BOT_CHANNEL_ID as string}/messages`
-            await DiscordRequest(endpoint, {
-              method: 'POST',
-              body:
-              {
-                embeds: [{
-                  title: `Market order ${marketOrder.id} triggered`,
-                  description: txLink
-                }]
-              }
-            })
-          }
-        }
-      }
-
-      // todo: get latest sales from api and save it to postgres
-    } catch (error) {
-      console.log(error)
-    }
-  }
-
-  // subscribe to new blocks
-  const { chainId, url } = userConfig.networks?.ronin as any
+  // subscribe to new blocks from the provider
   const provider = new ethers.providers.JsonRpcProvider(url, chainId)
-  provider.on('block', onBlock)
+  let time = Date.now()
+  provider.on('block', (blockNumber: number) => {
+    // check if we got two block almost at the same time
+    const diff = Date.now() - time
+    time = Date.now()
+    if (diff > 1000) {
+      console.log(`new block ${blockNumber} received after ${diff}ms`)
+      void onBlock(blockNumber)
+    }
+  })
 })
 
-app.get('/', async (req, res) => {
+app.get('/', (req, res) => {
   res.send('hello discord bot!')
 })
 
