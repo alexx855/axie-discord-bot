@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import { verifyKey } from 'discord-interactions'
 import { GRAPHQL_URL } from './constants'
 import { ethers } from 'ethers'
@@ -44,7 +43,7 @@ export interface IAsset {
 }
 
 export interface ITriggerOrder {
-  id: number
+  id: string
   axieId: string
   maker: string
   assets: IAsset[]
@@ -118,7 +117,7 @@ export function capitalize(str: string): string {
 }
 
 // convert the function fetchMarket from the python script axie.py to a typescript function
-export async function fetchApi(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<any> {
+export async function fetchApi<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<T | null> {
   try {
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
@@ -129,11 +128,11 @@ export async function fetchApi(query: string, variables: { [key: string]: any },
       body: JSON.stringify({ query, variables })
     })
 
-    const res = await response.json()
-    // todo: handle errors
+    const res: T = await response.json()
     return res
   } catch (error) {
-    return error
+    console.log(error)
+    return null
   }
 }
 
@@ -197,6 +196,39 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
       }
     }
   `
+  interface IAxieBriefListResult {
+    data: {
+      axies: {
+        total: number
+        results: Array<{
+          id: string
+          order: {
+            id: string
+            maker: string
+            kind: string
+            assets: IAsset[]
+            expiredAt: string
+            paymentToken: string
+            startedAt: string
+            basePrice: string
+            endedAt: string
+            endedPrice: string
+            expectedState: string
+            nonce: string
+            marketFeePercentage: string
+            signature: string
+            hash: string
+            duration: string
+            timeLeft: string
+            currentPrice: string
+            suggestedPrice: string
+            currentPriceUsd: string
+          }
+        }>
+      }
+    }
+  }
+
   const criteria: Criteria = {}
 
   // validate the marketProps, not the same as the graphql criteria
@@ -239,11 +271,11 @@ export async function fetchMarketResultsByOrder(marketOrder: IMarketOrder): Prom
   }
 
   // get results from the market
-  const res = await fetchApi(query, variables)
+  const res = await fetchApi<IAxieBriefListResult>(query, variables)
   // console.log('res', res)
-  if (res.data?.axies?.total > 0) {
+  if (res !== null && res.data.axies.total > 0) {
     const results = res.data.axies.results
-    // no need for this, we always want the cheapest axie
+    // no need for this, we always want the cheaper axie
     // const total = res.data.axies.total
     // while (total > results.length) {
     //   variables.from += 100
@@ -342,15 +374,39 @@ export async function removeMarketOrder(orderId: string) {
 
 export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
 
-export const getRandomMessage = async (): Promise<string> => {
+export const getRandomMessage = async (): Promise<string | false> => {
+  interface IRandomMessage {
+    data?: {
+      createRandomMessage: string
+    }
+    errors?: {
+      message: string
+    }
+  }
+
   const query = `mutation CreateRandomMessage {
     createRandomMessage
   }`
-  const res = await fetchApi(query, {})
+  const res = await fetchApi<IRandomMessage>(query, {})
+
+  if (res === null || res.data === undefined) {
+    return false
+  }
   return res.data.createRandomMessage
 }
 
-export const createAccessTokenWithSignature = async (owner: string, message: string, signature: string): Promise<string> => {
+export const createAccessTokenWithSignature = async (owner: string, message: string, signature: string): Promise<string | false> => {
+  interface ICreateAccessTokenResponse {
+    data?: {
+      createAccessTokenWithSignature: {
+        accessToken: string
+      }
+    }
+    errors?: {
+      message: string
+    }
+  }
+
   const query = `mutation CreateAccessTokenWithSignature($input: SignatureInput!) {
     createAccessTokenWithSignature(input: $input) {
       newAccount
@@ -359,16 +415,29 @@ export const createAccessTokenWithSignature = async (owner: string, message: str
       __typename
     }
   }`
+
   const variables = { input: { mainnet: 'ronin', owner, message, signature } }
-  const res = await fetchApi(query, variables)
-  return res.data.createAccessTokenWithSignature.accessToken ?? res.errors.message
+  const res = await fetchApi<ICreateAccessTokenResponse>(query, variables)
+
+  if (res !== null) {
+    if (res.data?.createAccessTokenWithSignature.accessToken !== undefined) {
+      return res.data.createAccessTokenWithSignature.accessToken
+    }
+
+    if (res.errors !== undefined) {
+      console.error(res.errors)
+    }
+  }
+
+  console.log('Error creating access token')
+  return false
 }
 
 export function HasGuildCommands(
-  appId: string | undefined,
-  guildId: string | undefined,
+  appId: string,
+  guildId: string,
   commands: any[]
-): void {
+) {
   if (guildId === '' || appId === '') return
 
   commands.forEach((c: any) => {
@@ -380,10 +449,10 @@ export function HasGuildCommands(
 
 // Checks for a command
 async function HasGuildCommand(
-  appId: any,
-  guildId: any,
+  appId: string,
+  guildId: string,
   command: { [x: string]: any }
-): Promise<void> {
+) {
   // API endpoint to get and post guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands`
 
@@ -423,7 +492,7 @@ export async function UpdateGuildCommand(
   guildId: any,
   commandId: any,
   command: { [x: string]: any }
-): Promise<void> {
+) {
   // API endpoint to get and post guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands/${commandId}`
 
@@ -445,7 +514,7 @@ export async function InstallGuildCommand(
   appId: any,
   guildId: any,
   command: any
-): Promise<void> {
+) {
   // API endpoint to get and post guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands`
   // install command

@@ -21,8 +21,10 @@ export interface Asset {
 }
 
 task('buy', 'Buy and axie from the marketplace')
-  .addParam('order', 'The trigger order object to trigger')
+  // .addParam('order', 'The trigger order object to trigger')
   .setAction(async (taskArgs: { order: string }, hre): Promise<boolean | string> => {
+    // track time
+    const startTime = Date.now()
     try {
       const order: ITriggerOrder = JSON.parse(taskArgs.order)
 
@@ -119,9 +121,6 @@ task('buy', 'Buy and axie from the marketplace')
       const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', settleOrderData, { gasLimit: DEFAULT_GAS_LIMIT })
       // console.log('txBuyAxie', txBuyAxie)
 
-      // ?? todo: validate that the tx not failed, like this one https://explorer.roninchain.com/tx/0xc99162e0ff6880730dc9a3d1427d702c6c60fdbca4b8201d087a6bc0ad2eee1e
-      // ?? todo: validate that we're the owners of the axie now, with a rpc call to the contract
-
       return txBuyAxie.hash as string
     } catch (error) {
       console.error(error)
@@ -183,41 +182,53 @@ task('unlist', 'Unlist an axie on the marketplace')
         axieId
       }
 
-      interface IAxieOrder {
-        id: string
-        maker: string
-        kind: number
-        assets: Array<{
-          erc: number
-          address: string
-          id: string
-          quantity: string
-          orderId: string
-        }>
-        expiredAt: string
-        paymentToken: string
-        startedAt: string
-        basePrice: string
-        endedAt: string
-        endedPrice: string
-        expectedState: number
-        nonce: string
-        marketFeePercentage: number
-        signature: string
-        hash: string
-        duration: number
-        timeLeft: number
-        currentPrice: string
-        suggestedPrice: string
-        currentPriceUsd: string
+      interface IAxieOrderResult {
+        data?: {
+          axie: {
+            id: string
+            order: {
+              id: string
+              maker: string
+              kind: number
+              assets: Array<{
+                erc: number
+                address: string
+                id: string
+                quantity: string
+                orderId: string
+              }>
+              expiredAt: string
+              paymentToken: string
+              startedAt: string
+              basePrice: string
+              endedAt: string
+              endedPrice: string
+              expectedState: number
+              nonce: string
+              marketFeePercentage: number
+              signature: string
+              hash: string
+              duration: number
+              timeLeft: number
+              currentPrice: string
+              suggestedPrice: string
+              currentPriceUsd: string
+            } | null
+          }
+          errors?: Array<{
+            message: string
+          }>
+        }
       }
-      const result = await fetchApi(query, variables)
-      const order: IAxieOrder | null = result?.data?.axie?.order
-      if (order === null) {
+
+      const result = await fetchApi<IAxieOrderResult>(query, variables)
+      // console.log('result', result)
+      if (result === null || result.data === undefined || result.data.axie.order == null) {
         console.log('Axie is not listed on the marketplace')
         return false
       }
 
+      const order = result.data.axie.order
       const accounts = await hre.ethers.getSigners()
       const signer = accounts[0]
 
@@ -255,8 +266,8 @@ task('unlist', 'Unlist an axie on the marketplace')
       )
 
       const txUnlistAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', cancelOrderData, { gasLimit: DEFAULT_GAS_LIMIT })
-      console.log(txUnlistAxie.hash)
-      return txUnlistAxie.hash
+      console.log('Axie unlisted', txUnlistAxie.hash)
+      return txUnlistAxie.hash as string
     } catch (error) {
       console.error(error)
       return false
@@ -507,12 +518,26 @@ task('list', 'List an axie on the marketplace')
       const headers = {
         authorization: `Bearer ${accessToken}`
       }
-
-      // send the order to the marketplace
-      const result = await fetchApi(query, variables, headers)
+      interface ICreateOrderResult {
+        data?: {
+          createOrder: {
+            hash: string
+          }
+        }
+        errors?: Array<{
+          message: string
+        }>
+      }
+      // send the create order mutation
+      const result = await fetchApi<ICreateOrderResult>(query, variables, headers)
       // console.log('result', result)
+      if (result === null) {
+        console.log('Error creating order')
+        return false
+      }
+
       if (result.errors !== undefined) {
-        console.log(result.errors[0].message)
+        console.log('Error creating order', result.errors)
         return false
       }
 
@@ -531,34 +556,65 @@ task('list', 'List an axie on the marketplace')
           priceFrom: basePrice,
           priceTo: endedPrice,
           duration: duration.toString(),
-          txHash: result.data.createOrder.hash as string
+          txHash: result.data?.createOrder.hash
         }
       }
 
-      const activityResult = await fetchApi(activityQuery, activityVariables, headers)
+      interface IActivityResult {
+        data?: {
+          createActivity: {
+            result: boolean
+          }
+        }
+        errors?: Array<{
+          message: string
+        }>
+      }
+
+      const activityResult = await fetchApi<IActivityResult>(activityQuery, activityVariables, headers)
       // console.log('activityResult', activityResult)
-      console.log('Axie listed successfully')
-      return activityResult.data?.createActivity?.result === true
+
+      if (activityResult === null || activityResult.data === undefined) {
+        console.log('Error creating activity')
+        return false
+      }
+
+      if (activityResult.errors !== undefined) {
+        console.log('Error creating activity', activityResult.errors)
+        return false
+      }
+
+      console.log('Order created result:', activityResult.data.createActivity.result)
+      return activityResult.data.createActivity.result
     } catch (error) {
       console.error(error)
       return false
     }
   })
 
-task('generate-access-token', 'Generate marketplace access token', async (taskArgs, hre): Promise<string> => {
+task('generate-access-token', 'Generate marketplace access token', async (taskArgs, hre): Promise<string | false> => {
   try {
     const accounts = await hre.ethers.getSigners()
     const signer = accounts[0]
     const address = signer.address.toLowerCase()
 
     const message = await getRandomMessage()
+    if (message === false) {
+      console.log('Error getting random message')
+      return false
+    }
+
     const signature = await signer.signMessage(message)
     const token = await createAccessTokenWithSignature(address, message, signature)
-    console.log(token)
+    if (token === false) {
+      console.log('Error creating access token')
+      return false
+    }
+    console.log('Access token:', token)
     return token
   } catch (error) {
     console.error(error)
-    return ''
+    return false
   }
 })
 

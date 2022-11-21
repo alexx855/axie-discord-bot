@@ -1,9 +1,68 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
-import { InteractionResponseType } from 'discord-interactions'
 import { ethers } from 'ethers'
 import { fetchApi } from '../utils'
+interface IAxieEmbedDetails {
+  title: string
+  description: string
+  thumbnail: {
+    url: string
+  }
+  color: number
+  type: string
+}
+interface IAxieData {
+  data: {
+    axie: {
+      id: string
+      class: string
+      chain: string
+      name: string
+      newGenes: string
+      ownerProfile: {
+        name: string | null
+      }
+      breedCount: number
+      order: {
+        currentPrice: number
+        currentPriceUsd: number
+      } | null
+      owner: string
+      stats: {
+        hp: number
+        speed: number
+        skill: number
+        morale: number
+      }
+      potentialPoints: {
+        beast: number
+        aquatic: number
+        plant: number
+        bug: number
+        bird: number
+        reptile: number
+        mech: number
+        dawn: number
+        dusk: number
+      }
+      parts: Array<{
+        id: string
+        name: string
+        type: string
+        class: string
+        specialGenes: string
+        stage: number
+      }>
+      title: string
+      description: string
+      thumbnail: {
+        url: string
+      }
+      color: number
+      type: string
+    }
+  }
+}
 
-export default async function handleAxieCommand(axieId: string, res: any): Promise<any> {
+export default async function handleAxieCommand(axieId: string): Promise<false | IAxieEmbedDetails> {
   // Send a simple query to the graphql api to get the axie data
   const query = `query GetAxieDetail($axieId: ID!) {
       axie(axieId: $axieId) {
@@ -131,15 +190,12 @@ export default async function handleAxieCommand(axieId: string, res: any): Promi
     axieId
   }
 
-  let content = ''
-  let embeds = null
-
   try {
-    const res = await fetchApi(query, variables)
-    if (res?.data?.axie !== null) {
-      const axie = res?.data?.axie
-      console.log(axie)
+    const res = await fetchApi<IAxieData>(query, variables)
+    if (res !== null) {
+      const axie = res.data.axie
 
+      let content = ''
       content = content + `**Class:** ${axie.class}`
       content = content + `\n**Breed Count:** ${axie.breedCount}`
       const pureness = axie.parts.filter((part: any) => part.class === axie.class).length
@@ -151,21 +207,10 @@ export default async function handleAxieCommand(axieId: string, res: any): Promi
         content = content + `\nhttps://marketplace.axieinfinity.com/axie/${axie.id}`
       }
 
-      // todo: generate origin stats, based on parts and current cards stats
-      // const originStats: { energy: number, damage: number, shield:number, heal: number } = axie.stats
-
-      // todo: generate custom origin tags, based on parts and current cards stats, ej: offensive, deffeensive, retain, curse, support
-      // const originTags: [string] =
-
-      content = content + `\n\r**Parts:**\n${axie.parts.map((part: {
-        id: string
-        name: string
-        class: string
-        type: string
-      }) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
+      content = content + `\n\r**Parts:**\n${axie.parts.map((part) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
       // content = content + `\n\r**Origin Stats:**\n`
-      content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key]}`).join('\n')}`
-      content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key]}`).join('\n')}`
+      content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key as keyof typeof axie.stats]}`).join('\n')}`
+      content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key as keyof typeof axie.potentialPoints] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key as keyof typeof axie.potentialPoints]}`).join('\n')}`
       content = content + `\n\r**Owner:** ${axie.ownerProfile?.name ?? 'Unknown'}`
       // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
       content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
@@ -204,28 +249,20 @@ export default async function handleAxieCommand(axieId: string, res: any): Promi
           color = 0xffffff
           break
       }
-
-      embeds = [
-        {
-          title: `Axie #${axie.id}`,
-          description: content,
-          thumbnail: {
-            url: `https://axiecdn.axieinfinity.com/axies/${axie.id}/axie/axie-full-transparent.png`
-          },
-          color,
-          type: 'rich'
-        }
-      ]
+      const embed: IAxieEmbedDetails = {
+        title: `Axie #${axie.id}`,
+        description: content,
+        thumbnail: {
+          url: `https://axiecdn.axieinfinity.com/axies/${axie.id}/axie/axie-full-transparent.png`
+        },
+        color,
+        type: 'rich'
+      }
+      return embed
     }
+    return false
   } catch (error) {
     console.log(error)
+    return false
   }
-
-  return res.send({
-    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-    data: {
-      content: '',
-      embeds
-    }
-  })
 }
