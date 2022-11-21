@@ -1,6 +1,6 @@
 {
   "name": "axie-discord-bot",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Alex Pedersen",
     "email": "mails@alexpedersen.dev"
@@ -8,6 +8,7 @@
   "scripts": {
     "start": "npx node-dev app.ts",
     "eslint": "npx eslint . --ext .ts",
+    "access-token": "npx hardhat generate-access-token",
     "account": "npx hardhat account"
   },
   "devDependencies": {
