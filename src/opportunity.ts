@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import { ICriteria } from './interfaces'
 import { fetchMarketByCriteria, fetchMarketRecentlistings, getMostRecentlistingsAxieId, setMostRecentlistingsAxieId } from './market'
-import { DiscordRequest } from './utils'
+import { DiscordRequest, getClassColor } from './utils'
 
 interface IAxieOpportunityItem {
   axieId: string
@@ -25,8 +25,9 @@ interface IAxieOpportunityItem {
   // similarLastSoldDate: string
 }
 
-const MAX_PRICE = ethers.utils.parseUnits('1.004', 'ether') // the max price to buy an axie, in ETH
-const MAX_SIMILAR = 20 // the maximun number of similar listings to consider buy an axie
+const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max price to buy an axie, in ETH
+const MAX_SIMILAR = 80 // the maximun number of similar listings to consider buy an axie
+const MIN_SIMILAR = 4 // the minimum number of similar listings to consider buy an axie
 const MIN_PROFIT = ethers.utils.parseUnits('0.002', 'ether') // the minimum profit to buy an axie, in ETH
 const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
 // const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
@@ -158,15 +159,14 @@ export const opportunityChecker = async () => {
     // const totalListed = similarListings.length
     const totalListed = similarMarketListings.total - 1 // -1 to exclude the current listing
     if (totalListed === 0) {
-    // if (similarListings.length === 0) {
       console.log(`skiping ${listing.id} has no similar listings`)
       continue
     }
 
     const floorPrice = ethers.BigNumber.from(similarListings[0].order.currentPrice)
     console.log('floorPrice', ethers.utils.formatEther(floorPrice))
-    if (totalListed > MAX_SIMILAR) {
-      console.log('axie2 is a not good opportunity', listing.id)
+    if (totalListed > MAX_SIMILAR || totalListed < MIN_SIMILAR) {
+      console.log(`skiping ${listing.id} has ${totalListed} similar listings and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
       continue
     }
 
@@ -213,13 +213,14 @@ export const opportunityChecker = async () => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
       const estimatedPercent = ethers.BigNumber.from(item.profit).div(ethers.BigNumber.from(item.currentPrice)).toNumber() * 100
-
+      const color = getClassColor(item.class)
       embeds.push(
         {
-          title: `${item.rarity} ${item.class.toLowerCase()}`,
-          description: `Price ${ethers.utils.formatEther(item.currentPrice)}Ξ
-          Floor ${ethers.utils.formatEther(item.floorPrice)}Ξ
-          Estimated Profit (${estimatedPercent}%) ${ethers.utils.formatEther(item.profit)}Ξ`,
+          title: `New ${item.rarity} ${item.class.toLowerCase()} ${estimatedPercent}% flip chance`,
+          description: `Price:${ethers.utils.formatEther(item.currentPrice)}Ξ
+          Floor: ${ethers.utils.formatEther(item.floorPrice)}Ξ
+          Estimated Profit: ${ethers.utils.formatEther(item.profit)}Ξ`,
+          color,
           thumbnail: {
             url: `https://axiecdn.axieinfinity.com/axies/${item.axieId}/axie/axie-full-transparent.png`
           },
@@ -272,7 +273,7 @@ export const opportunityChecker = async () => {
       method: 'POST',
       body:
       {
-        content: `Opportunit${embeds.length > 1 ? 'ies' : 'y'} found!`,
+        // content: `Opportunit${embeds.length > 1 ? 'ies' : 'y'} found!`,
         embeds
       }
     })
