@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 import { IDiscordEmbed } from './interfaces'
-import { fetchApi } from './utils'
+import { fetchApi, getClassColor } from './utils'
 
 export const getAxieData = async (axieId: string) => {
   // Send a simple query to the graphql api to get the axie data
@@ -222,41 +222,8 @@ export default async function getAxieEmbedDetails(axieId: string): Promise<false
   // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
   content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
 
-  // todo: move to utils
   // custom embed color by axie class
-  let color
-  switch (axie.class) {
-    case 'Beast':
-      color = 0xfdb014
-      break
-    case 'Bug':
-      color = 0xff433e
-      break
-    case 'Bird':
-      color = 0xfa59a0
-      break
-    case 'Plant':
-      color = 0xafdb1b
-      break
-    case 'Aquatic':
-      color = 0x00f5f8
-      break
-    case 'Reptile':
-      color = 0x9967fb
-      break
-    case 'Dusk':
-      color = 0x29fae
-      break
-    case 'Dawn':
-      color = 0x7183e3
-      break
-    case 'Mech':
-      color = 0x71898e
-      break
-    default:
-      color = 0xffffff
-      break
-  }
+  const color = getClassColor(axie.class)
   const embed: IDiscordEmbed = {
     title: `Axie #${axie.id}`,
     description: content,

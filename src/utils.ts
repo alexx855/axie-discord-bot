@@ -242,3 +242,41 @@ export async function InstallGuildCommand(
     console.error(err)
   }
 }
+
+export function getClassColor(axieClassName: string) {
+  let color = 0x000000
+  switch (axieClassName) {
+    case 'Beast':
+      color = 0xfdb014
+      break
+    case 'Bug':
+      color = 0xff433e
+      break
+    case 'Bird':
+      color = 0xfa59a0
+      break
+    case 'Plant':
+      color = 0xafdb1b
+      break
+    case 'Aquatic':
+      color = 0x00f5f8
+      break
+    case 'Reptile':
+      color = 0x9967fb
+      break
+    case 'Dusk':
+      color = 0x29fae
+      break
+    case 'Dawn':
+      color = 0x7183e3
+      break
+    case 'Mech':
+      color = 0x71898e
+      break
+    default:
+      color = 0xffffff
+      break
+  }
+
+  return color
+}
