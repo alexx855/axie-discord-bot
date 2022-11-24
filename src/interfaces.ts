@@ -7,6 +7,8 @@ export interface IMarketOrder {
   triggerPrice: string
   floorPrice?: string
 }
+
+// todo: complete interface
 export interface IAsset {
   [key: string]: any
 }

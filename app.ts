@@ -16,11 +16,9 @@ import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
 import { getMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
-import { onBlock } from './src/onblock'
-import config from './hardhat.config'
-import { HttpNetworkUserConfig } from 'hardhat/types'
-
+import { opportunityChecker } from './src/opportunity'
 import * as dotenv from 'dotenv'
+import { config } from 'hardhat'
 dotenv.config()
 
 // Create an express app
@@ -197,7 +195,7 @@ app.post('/interactions', async (req, res) => {
     // custom_id of modal
     const modalId = data.custom_id
     // user ID of member who filled out modal
-    const userId = req.body.member.user.id
+    const userId = req.body.member.user.id as string
 
     if (modalId === 'add_order_modal') {
       let modalValues = ''
@@ -262,7 +260,7 @@ app.post('/interactions', async (req, res) => {
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content: `<@${userId as string
+          content: `<@${userId
             }> created the following order:\n\n${modalValues}`
         }
       })
@@ -285,7 +283,7 @@ app.listen(PORT, () => {
     process.exit(1)
   }
 
-  const { chainId, url } = config.networks?.ronin as HttpNetworkUserConfig
+  const { chainId, url } = config.networks?.ronin as any
   if (chainId === undefined || url === undefined) {
     console.log('Missing network config, exiting...')
     process.exit(1)
@@ -311,7 +309,8 @@ app.listen(PORT, () => {
     time = Date.now()
     if (diff > 1000) {
       console.log(`new block ${blockNumber} received after ${diff}ms`)
-      void onBlock(blockNumber)
+      void opportunityChecker()
+      // void marketOrdersChecker()
     }
   })
 })
