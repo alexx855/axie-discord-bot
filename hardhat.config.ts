@@ -11,10 +11,12 @@ import {
 import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
-import { IMarketBuyOrder } from './src/interfaces'
+import { ICriteria, IMarketBuyOrder } from './src/interfaces'
 import { fetchApi, getRandomMessage, createAccessTokenWithSignature } from './src/utils'
 import * as fs from 'fs/promises'
 import * as dotenv from 'dotenv'
+import { getAxieData, getAxieEstimatedPrice } from './src/axies'
+import { fetchMarketByCriteria } from './src/market'
 dotenv.config()
 
 task('buy', 'Buy and axie from the marketplace')
@@ -610,6 +612,93 @@ task('generate-access-token', 'Generate marketplace access token', async (taskAr
     }
     console.log('Access token:', token)
     return token
+  } catch (error) {
+    console.error(error)
+    return false
+  }
+})
+
+task('listall', 'List all axies on the marketplace', async (taskArgs, hre) => {
+  try {
+    const accounts = await hre.ethers.getSigners()
+    const signer = accounts[0]
+    const address = signer.address.toLowerCase()
+    const accessToken = await hre.run('generate-access-token')
+    // get axie contract
+    const axieABI = JSON.parse(await fs.readFile(CONTRACT_AXIE_ABI_JSON_PATH, 'utf8'))
+    const axieContract = await new hre.ethers.Contract(CONTRACT_AXIE_ADDRESS, axieABI, signer)
+    // get axies balance for the address
+    const axiesBalance = await axieContract.balanceOf(address)
+    console.log('Axies:', axiesBalance.toNumber())
+
+    // get axies
+    for (let i = 0; i < axiesBalance.toNumber(); i++) {
+      const axie: string = (await axieContract.tokenOfOwnerByIndex(address, i)).toString()
+      console.log('Listing Axie id:', axie)
+
+      // get axie data from thegraph
+      const axieData = await getAxieData(axie)
+      if (axieData === false) {
+        console.log('Error getting axie data')
+        continue
+      }
+
+      // check if axie is already listed
+      if (axieData.order !== null) {
+        console.log('Axie already listed')
+        continue
+      }
+
+      // get similar axies from market axie
+      const criteria: ICriteria = {
+        classes: [axieData.class],
+        parts: axieData.parts.map((part) => part.id)
+        // todo: fix breeding count results
+        // breedCount: [axieData.breedCount]
+      }
+      const similarAxies = await fetchMarketByCriteria(
+        criteria
+      )
+
+      if (similarAxies === false) {
+        console.log('Error getting similar axies')
+        continue
+      }
+
+      // rarity based on the Axie's R1 genes
+      const totalAxies = similarAxies.total
+      const rarity = totalAxies === 1 ? 'unique' : totalAxies < 100 ? 'epic' : totalAxies < 1000 ? 'rare' : 'common'
+
+      // continue if axie is unique
+      if (rarity === 'unique') {
+        console.log('Axie is unique, skipping')
+        continue
+      }
+
+      // get axie breeds, continue if is rare && breed 0
+      if (rarity === 'rare' && axieData.breedCount === 0) {
+        console.log('Rare axie with breed 0, skipping')
+        continue
+      }
+
+      const minPrice = '0.008' // in ETH
+      const estPrice = await getAxieEstimatedPrice(axie, minPrice)
+      if (estPrice === false) {
+        console.log('Error getting axie estimated price')
+        continue
+      }
+      const estimatedBasePrice = hre.ethers.BigNumber.from(estPrice)
+      const basePrice = hre.ethers.utils.formatEther(estimatedBasePrice)
+      console.log('Base price:', basePrice)
+
+      // base price reduced by 30%
+      const endedPrice = hre.ethers.utils.formatEther(estimatedBasePrice.mul(70).div(100))
+      console.log('Ended price:', endedPrice)
+
+      const duration = '6' // duration in days
+      const result = await hre.run('list', { axie, basePrice, accessToken, endedPrice, duration })
+      console.log('Listing result:', result)
+    }
   } catch (error) {
     console.error(error)
     return false
