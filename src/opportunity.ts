@@ -18,6 +18,7 @@ interface IAxieOpportunityItem {
   breedCount: number
   totalListed: number
   totalAxies: number
+  estimatedPercentage: number
   rarity: 'common' | 'rare' | 'epic' | 'unique'
   // pureness: number
   // similarFloorPrice: string
@@ -26,9 +27,10 @@ interface IAxieOpportunityItem {
 }
 
 const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max price to buy an axie, in ETH
-const MAX_SIMILAR = 80 // the maximun number of similar listings to consider buy an axie
+const MAX_SIMILAR = 200 // the maximun number of similar listings to consider buy an axie
 const MIN_SIMILAR = 4 // the minimum number of similar listings to consider buy an axie
-const MIN_PROFIT = ethers.utils.parseUnits('0.002', 'ether') // the minimum profit to buy an axie, in ETH
+const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit to buy an axie, in ETH
+const MIN_PROFIT_DIFF_PERCENTAGE = 120 // the minimum difference in % on the floor price to consider buy an axie
 const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
 // const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
 // const MAX_EXISTENCE = 40 // the maximun number of similar on existence to consider buy an axie
@@ -39,7 +41,7 @@ const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
 export const opportunityChecker = async () => {
   // track time
   const startTime = Date.now()
-  console.log('\x1b[36m%s\x1b[0m', 'opportunity checking started')
+  // console.log('\x1b[36m%s\x1b[0m', 'opportunity checking started')
 
   // get latest listings from api
   const listings = await fetchMarketRecentlistings()
@@ -58,16 +60,14 @@ export const opportunityChecker = async () => {
   const mostRecentSavedAxieId = await getMostRecentlistingsAxieId()
   // console.log('mostRecentSavedAxieId', mostRecentSavedAxieId)
 
-  // // check if its still the most recent, if not, save it
-  // if (mostRecentSavedAxieId === listings[0].id) {
-  //   console.log('\x1b[36m%s\x1b[0m', 'opportunity checking finished, no new listings')
-  //   return
-  // }
-
-  // console.log('new axies for sale found, saving')
+  // check if its still the most recent, if not, save it
+  if (mostRecentSavedAxieId === listings[0].id) {
+    console.log('\x1b[36m%s\x1b[0m', 'opportunity checking finished, no new listings')
+    return
+  }
   await setMostRecentlistingsAxieId(listings[0].id)
 
-  // interate over the axie's and check if there is an opportunity
+  // interate over the listings and check if there is an opportunity
   const items: IAxieOpportunityItem[] = []
   for (let i = 0; i < listings.length; i++) {
     const listing = listings[i]
@@ -92,7 +92,7 @@ export const opportunityChecker = async () => {
       continue
     }
 
-    // todo: refactor, check for all classes not only the listing class
+    // todo: fix, check for all classes not only the listing class
     // check if the axie has more than the min number of pureness
     // const pureness = listing.parts.filter((part: any) => part.class === listing.class).length
     // if (pureness < MIN_PURENESS) {
@@ -163,13 +163,13 @@ export const opportunityChecker = async () => {
       continue
     }
 
-    const floorPrice = ethers.BigNumber.from(similarListings[0].order.currentPrice)
-    console.log('floorPrice', ethers.utils.formatEther(floorPrice))
+    // console.log('floorPrice', ethers.utils.formatEther(floorPrice))
     if (totalListed > MAX_SIMILAR || totalListed < MIN_SIMILAR) {
       console.log(`skiping ${listing.id} has ${totalListed} similar listings and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
       continue
     }
 
+    const floorPrice = ethers.BigNumber.from(similarListings[0].order.currentPrice)
     // check if the similar floor price - current price is more than the min profit
     const profit = floorPrice.sub(currentPrice)
     if (profit.lt(MIN_PROFIT)) {
@@ -180,6 +180,13 @@ export const opportunityChecker = async () => {
     // rarity based on the Axie's R1 genes
     const rarity = totalAxies === 1 ? 'unique' : totalAxies < 100 ? 'epic' : totalAxies < 1000 ? 'rare' : 'common'
 
+    // check if the minimum difference in % on the floor price to consider buy an axie
+    const estimatedPercentage = profit.div(currentPrice).toNumber() * 100
+    if (estimatedPercentage < MIN_PROFIT_DIFF_PERCENTAGE) {
+      console.log(`skiping ${listing.id} estimated percentage ${estimatedPercentage}% is under ${MIN_PROFIT_DIFF_PERCENTAGE}%`)
+      continue
+    }
+
     // todo: get the last sold price from the similar Axie's listing history
     // const lastSoldDate = null
     // const lastSoldPrice = null
@@ -189,6 +196,7 @@ export const opportunityChecker = async () => {
       currentPrice: currentPrice.toString(),
       floorPrice: floorPrice.toString(),
       profit: profit.toString(),
+      estimatedPercentage,
       breedCount: listing.breedCount,
       class: listing.class,
       parts: listing.parts,
@@ -212,11 +220,10 @@ export const opportunityChecker = async () => {
     const embeds = []
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
-      const estimatedPercent = ethers.BigNumber.from(item.profit).div(ethers.BigNumber.from(item.currentPrice)).toNumber() * 100
       const color = getClassColor(item.class)
       embeds.push(
         {
-          title: `New ${item.rarity} ${item.class.toLowerCase()} ${estimatedPercent}% flip chance`,
+          title: `New ${item.rarity} ${item.class.toLowerCase()} ${item.estimatedPercentage}% flip chance`,
           description: `Price:${ethers.utils.formatEther(item.currentPrice)}Ξ
           Floor: ${ethers.utils.formatEther(item.floorPrice)}Ξ
           Estimated Profit: ${ethers.utils.formatEther(item.profit)}Ξ`,
@@ -273,7 +280,7 @@ export const opportunityChecker = async () => {
       method: 'POST',
       body:
       {
-        // content: `Opportunit${embeds.length > 1 ? 'ies' : 'y'} found!`,
+        content: `New opportunit${embeds.length > 1 ? 'ies' : 'y'} found!`,
         embeds
       }
     })
