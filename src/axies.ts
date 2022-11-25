@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
-import { IDiscordEmbed } from './interfaces'
+import { ICriteria, IDiscordEmbed } from './interfaces'
+import { fetchMarketByCriteria } from './market'
 import { fetchApi, getClassColor } from './utils'
 
 export const getAxieData = async (axieId: string) => {
@@ -196,7 +197,42 @@ fragment AssetInfo on Asset {
   return false
 }
 
-export default async function getAxieEmbedDetails(axieId: string): Promise<false | IDiscordEmbed> {
+export async function getAxieEstimatedPrice(axieId: string) {
+  const axieData = await getAxieData(axieId)
+  if (axieData === false) {
+    return false
+  }
+
+  // todo: get axie cards stats from the api
+  const { parts } = axieData
+
+  // search the market for a floor price based on parts
+  const criteria: ICriteria = {
+    classes: [axieData.class],
+    parts: parts.map((part) => part.id)
+    // todo: fix breeding count results
+    // breedCount: [listing.breedCount]
+  }
+  const similarMarketListings = await fetchMarketByCriteria(
+    criteria,
+    0,
+    100,
+    'PriceAsc',
+    'Sale'
+  )
+
+  // the min floor price for the axies that cannot be valued
+  const MIN_PRICE = ethers.utils.parseUnits('0.1', 'ether').toString()
+  let floorPrice = MIN_PRICE
+  if (similarMarketListings !== false) {
+    // get the floor price from the market listings
+    floorPrice = similarMarketListings.results[0].order.currentPrice
+  }
+
+  return floorPrice
+}
+
+export async function getAxieEmbed(axieId: string): Promise<false | IDiscordEmbed> {
   const axie = await getAxieData(axieId)
   if (axie === false) {
     return false
