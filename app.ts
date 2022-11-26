@@ -11,14 +11,14 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import { ethers } from 'ethers'
-import getAxieEmbedDetails from './src/axies'
+import { getAxieEmbed } from './src/axies'
 import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
 import { getMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
 import { opportunityChecker } from './src/opportunity'
-import * as dotenv from 'dotenv'
 import { config } from 'hardhat'
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Create an express app
@@ -58,7 +58,7 @@ app.post('/interactions', async (req, res) => {
       // Send a message into the channel where command was triggered from
       const axieId = data.options[0].value as string
       try {
-        const embed = await getAxieEmbedDetails(axieId)
+        const embed = await getAxieEmbed(axieId)
         const content = embed === false ? 'Axie not found' : ''
 
         return res.send({
@@ -311,6 +311,7 @@ app.listen(PORT, () => {
       console.log(`new block ${blockNumber} received after ${diff}ms`)
       void opportunityChecker()
       // void marketOrdersChecker()
+      // todo: save recent sales to postgres
     }
   })
 })

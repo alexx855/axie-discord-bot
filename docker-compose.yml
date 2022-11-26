@@ -30,7 +30,11 @@ services:
     command: /bin/sh -c "redis-server --requirepass ${REDIS_PASSWORD-password}"
     volumes:
       - ./data-redis:/data
-    # ports:
-    #   - target: 6379
-    #     published: 6379
-    #     protocol: tcp
+  admin:
+    image: adminer
+    restart: always
+    depends_on: 
+      - postgres
+    ports:
+      - 8080:8080
+

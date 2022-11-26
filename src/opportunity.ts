@@ -27,10 +27,10 @@ interface IAxieOpportunityItem {
 }
 
 const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max price to buy an axie, in ETH
-const MAX_SIMILAR = 200 // the maximun number of similar listings to consider buy an axie
-const MIN_SIMILAR = 4 // the minimum number of similar listings to consider buy an axie
+const MAX_SIMILAR = 500 // the maximun number of similar listings to consider buy an axie
+const MIN_SIMILAR = 3  // the minimum number of similar listings to consider buy an axie
 const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit to buy an axie, in ETH
-const MIN_PROFIT_DIFF_PERCENTAGE = 120 // the minimum difference in % on the floor price to consider buy an axie
+const MIN_PROFIT_DIFF_PERCENTAGE = 300 // the minimum difference in % on the floor price to consider buy an axie
 const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
 // const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
 // const MAX_EXISTENCE = 40 // the maximun number of similar on existence to consider buy an axie

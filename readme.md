@@ -21,13 +21,15 @@ docker compose up
 ### Hardhat tasks
 - *account* - list account balances
 - *generate-access-token* - generate marketplace access token
-- *list* - list an axie on the marketplace (requires access token)
+- *listall* - list all axies on the account, automatically calculate the price based on similar listings and axie rarity
+- *list* - list an axie on the marketplace
 - *unlist* - unlist an axie on the marketplace
-- *buy* - buy an axie on the marketplace (requires a JSON order from the marketplace)
+- *buy* - buy an axie on the marketplace from an order
 
 ```bash
 npx hardhat accounts
 npx hardhat generate-access-token
+npx hardhat listall
 npx hardhat list --axie $AXIE_ID --base-price 0.1 --ended-price 0.2 --duration 1 --access-token $ACCESS_TOKEN
 npx hardhat unlist --axie $AXIE_ID 
 npx hardhat buy --order JSON.stringify(IMarketBuyOrder)
@@ -39,4 +41,8 @@ npx hardhat buy --order JSON.stringify(IMarketBuyOrder)
 - */get_orders* - Get open orders, this how you get the order ID
 - */remove_order $ORDER_ID* - Remove order by ID
 - **TODO: /list - List axie's on the marketplace**
-- **TODO: /unlist - batch unlist axies auctions**
+- **TODO: /unlist - batch rename**
+- **TODO: /unlist - batch unlist**
+
+### Discord bot notifications:
+The opportunity to buy an axie is notified in the discord channel specified in the .env file.

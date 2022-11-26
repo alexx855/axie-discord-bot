@@ -2,10 +2,9 @@
 import { verifyKey } from 'discord-interactions'
 import { ethers } from 'ethers'
 import { createClient } from 'redis'
-// import { Client } from 'pg'
-
-import * as dotenv from 'dotenv'
 import { GRAPHQL_URL } from '../constants'
+import { Client } from 'pg'
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // redis client
@@ -19,15 +18,15 @@ export const redisClient = createClient({
 // redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
 
 // postgres client
-// export const postgresClient = new Client(
-//   {
-//     user: process.env.POSTGRES_USER ?? 'postgres',
-//     host: process.env.POSTGRES_HOST ?? 'localhost',
-//     database: process.env.POSTGRES_DB ?? 'axiebot',
-//     password: process.env.POSTGRES_PASSWORD ?? 'password',
-//     port: 5432
-//   }
-// ).on('error', (err) => console.log('Postgres postgresClient Error', err))
+export const postgresClient = new Client(
+  {
+    user: process.env.POSTGRES_USER ?? 'postgres',
+    host: process.env.POSTGRES_HOST ?? 'localhost',
+    database: process.env.POSTGRES_DB ?? 'axiebot',
+    password: process.env.POSTGRES_PASSWORD ?? 'password',
+    port: 5432
+  }
+).on('error', (err) => console.log('Postgres postgresClient Error', err))
 // postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export function VerifyDiscordRequest(clientKey: string) {

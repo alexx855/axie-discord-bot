@@ -1,23 +1,6 @@
 import { IMarketOrder, IAsset, ICriteria } from './interfaces'
 import { fetchApi, redisClient } from './utils'
 
-export async function fetchMarketSimilarlistings(criteria: ICriteria) {
-  const result = await fetchMarketByCriteria(criteria)
-  // console.log('result', result)
-
-  return result
-
-  // let floor = 0
-  // let onsale = 0
-  // let total = 0
-
-  // return {
-  //   floor,
-  //   onsale,
-  //   total
-  // }
-}
-
 export async function fetchMarketRecentlistings() {
   const query = `query GetAxieLatest(
     $auctionType: AuctionType

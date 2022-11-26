@@ -669,17 +669,17 @@ task('listall', 'List all axies on the marketplace', async (taskArgs, hre) => {
       const totalAxies = similarAxies.total
       const rarity = totalAxies === 1 ? 'unique' : totalAxies < 100 ? 'epic' : totalAxies < 1000 ? 'rare' : 'common'
 
-      // continue if axie is unique
-      if (rarity === 'unique') {
-        console.log('Axie is unique, skipping')
-        continue
-      }
+      // // continue if axie is unique
+      // if (rarity === 'unique') {
+      //   console.log('Axie is unique, skipping')
+      //   continue
+      // }
 
-      // get axie breeds, continue if is rare && breed 0
-      if (rarity === 'rare' && axieData.breedCount === 0) {
-        console.log('Rare axie with breed 0, skipping')
-        continue
-      }
+      // // get axie breeds, continue if is rare && breed 0
+      // if (rarity === 'rare' && axieData.breedCount === 0) {
+      //   console.log('Rare axie with breed 0, skipping')
+      //   continue
+      // }
 
       const minPrice = '0.008' // in ETH
       const estPrice = await getAxieEstimatedPrice(axie, minPrice)

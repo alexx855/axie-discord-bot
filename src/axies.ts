@@ -187,7 +187,7 @@ fragment AssetInfo on Asset {
 
   try {
     const res = await fetchApi<IAxieData>(query, variables)
-    if (res === null || res.data.axie === null) {
+    if (res === null || res.data === undefined || res.data.axie === null) {
       return false
     }
     return res.data.axie
@@ -197,7 +197,7 @@ fragment AssetInfo on Asset {
   return false
 }
 
-export async function getAxieEstimatedPrice(axieId: string) {
+export async function getAxieEstimatedPrice(axieId: string, minPrice: string) {
   const axieData = await getAxieData(axieId)
   if (axieData === false) {
     return false
@@ -222,11 +222,23 @@ export async function getAxieEstimatedPrice(axieId: string) {
   )
 
   // the min floor price for the axies that cannot be valued
-  const MIN_PRICE = ethers.utils.parseUnits('0.1', 'ether').toString()
-  let floorPrice = MIN_PRICE
+  const MIN_PRICE = ethers.utils.parseUnits(minPrice, 'ether')
+  let floorPrice = MIN_PRICE.toString()
   if (similarMarketListings !== false) {
+    // if unique axie, multiply 30x the MIN_PRICE
+    if (similarMarketListings.total === 0) {
+      floorPrice = MIN_PRICE.mul(30).toString()
+    } else {
     // get the floor price from the market listings
-    floorPrice = similarMarketListings.results[0].order.currentPrice
+      const currentPrice = ethers.BigNumber.from(similarMarketListings.results[0].order.currentPrice)
+      // reduce the floor price by 1% so it will be the new floor price
+      floorPrice = currentPrice.sub(currentPrice.div(100)).toString()
+    }
+
+    // if the floor price is less than the min price, set it to the min price
+    if (ethers.BigNumber.from(floorPrice).lt(MIN_PRICE)) {
+      floorPrice = MIN_PRICE.toString()
+    }
   }
 
   return floorPrice
