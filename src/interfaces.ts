@@ -69,6 +69,6 @@ export interface IScalpedAxie {
   estimatedPercentage: number
   rarity: 'Common' | 'Rare' | 'Epic' | 'Unique'
   pureness: number
-  // lastSoldPrice: string
-  // lastSoldDate: string
+  lastSoldPrice: string
+  lastSoldDate: string
 }

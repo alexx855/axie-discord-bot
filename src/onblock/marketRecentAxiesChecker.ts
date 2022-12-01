@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import { IScalpedAxie, ICriteria } from '../interfaces'
 import { fetchMarketRecentlistings, getMostRecentlistingsAxieId, setMostRecentlistingsAxieId, fetchMarketByCriteria } from '../market'
-import { getClassColor, DiscordRequest } from '../utils'
+import { getClassColor, DiscordRequest, getAxieTransferHistory } from '../utils'
 
 const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while
 const MAX_SIMILAR = 40 // the maximun number on sale to consider buy an axie
@@ -45,7 +45,29 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
       if (listing.id === mostRecentSavedAxieId) {
         break
       }
-      // console.log(`checking axie ${listing.id}`)
+
+      // get the last sold price from the similar Axie's listing history
+      const res = await getAxieTransferHistory(listing.id)
+      let lastSoldDate = '0'
+      let lastSoldPrice = '0'
+      if (res !== null && res.transferHistory.results.length > 0) {
+        const transferHistory = res.transferHistory
+        // const ethereumTransferHistory = res.ethereumTransferHistory
+        // get latest sold price and date from transferHistory.results[0].timestamp
+        const sDate = new Date(transferHistory.results[0].timestamp * 1000)
+        lastSoldDate = sDate.toLocaleString()
+        const sPrice = ethers.BigNumber.from(transferHistory.results[0].withPrice)
+        lastSoldPrice = sPrice.toString()
+
+        //  prevent buying already flipped axies
+        const now = new Date()
+        const diff = now.getTime() - sDate.getTime()
+        const diffHours = Math.round(diff / 1000 / 60 / 60)
+        if (diffHours < 12 && sPrice.lt(listing.order.currentPrice)) {
+          // console.log(`skipping axie ${listing.id} already flipped`)
+          continue
+        }
+      }
 
       // check if the axie is under the max price willing to pay
       const currentPrice = ethers.BigNumber.from(listing.order.currentPrice)
@@ -155,10 +177,6 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         continue
       }
 
-      // todo: get the last sold price from the similar Axie's listing history
-      // const lastSoldDate = null
-      // const lastSoldPrice = null
-
       items.push({
         axieId: listing.id,
         currentPrice: currentPrice.toString(),
@@ -171,7 +189,9 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         rarity,
         pureness,
         totalOnSale,
-        totalAxies
+        totalAxies,
+        lastSoldDate,
+        lastSoldPrice
       })
     }
 
@@ -229,12 +249,12 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
                 value: `https://app.axieinfinity.com/marketplace/axies/?auctionTypes=Sale&parts=${item.parts.map(part => part.id).join('&parts=')}&classes=${item.class}`,
                 // &breedCount=0&breedCount=${item.breedCount}
                 inline: false
+              },
+              {
+                name: 'Sale history',
+                value: `Last sold: ${item.lastSoldDate}\nPrice: ${ethers.utils.formatEther(item.lastSoldPrice).slice(0, 6)}Ξ`,
+                inline: true
               }
-              // {
-              //   name: 'Sale history',
-              //   value: item.lastSoldPrice,
-              //   inline: true
-              // }
             ]
           })
       }

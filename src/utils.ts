@@ -71,7 +71,6 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-// convert the function fetchMarket from the python script axie.py to a typescript function
 export async function fetchApi<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<T | null> {
   try {
     const response = await fetch(GRAPHQL_URL, {
@@ -278,4 +277,38 @@ export function getClassColor(axieClassName: string) {
   }
 
   return color
+}
+
+export async function getAxieTransferHistory(axieId: string) {
+  const query = 'query GetAxieTransferHistory($axieId: ID!, $from: Int!, $size: Int!) {\n\taxie(axieId: $axieId) {\n\t\tid\n\t\ttransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\tethereumTransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\nfragment TransferRecords on TransferRecords {\n\ttotal\n\tresults {\n\t\tfrom\n\t\tto\n\t\ttimestamp\n\t\ttxHash\n\t\twithPrice\n\t\t__typename\n\t}\n\t__typename\n}\n'
+  interface IGetAxieTransferHistoryResponse {
+    data: {
+      axie: {
+        id: string
+        transferHistory: {
+          total: number
+          results: Array<{
+            from: string
+            to: string
+            timestamp: number
+            txHash: string
+            withPrice: number
+          }>
+        }
+        ethereumTransferHistory: {
+          total: number
+          results: Array<{
+            from: string
+            to: string
+            timestamp: number
+            txHash: string
+            withPrice: number
+          }>
+        }
+      }
+    }
+  }
+  const variables = { axieId, from: 0, size: 5 }
+  const res = await fetchApi<IGetAxieTransferHistoryResponse>(query, variables)
+  return res === null || res.data.axie === undefined ? null : res.data.axie
 }
