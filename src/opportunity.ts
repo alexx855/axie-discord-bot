@@ -16,7 +16,7 @@ interface IAxieOpportunityItem {
   floorPrice: string
   profit: string
   breedCount: number
-  totalListed: number
+  totalOnSale: number
   totalAxies: number
   estimatedPercentage: number
   rarity: 'common' | 'rare' | 'epic' | 'unique'
@@ -26,22 +26,23 @@ interface IAxieOpportunityItem {
   // similarLastSoldDate: string
 }
 
-const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max price to buy an axie, in ETH
-const MAX_SIMILAR = 500 // the maximun number of similar listings to consider buy an axie
-const MIN_SIMILAR = 3  // the minimum number of similar listings to consider buy an axie
-const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit to buy an axie, in ETH
-const MIN_PROFIT_DIFF_PERCENTAGE = 300 // the minimum difference in % on the floor price to consider buy an axie
+const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max price , in ETH
+const MAX_SIMILAR = 40 // the maximun number on sale to consider buy an axie
+const MIN_SIMILAR = 3 // the minimum number on sale to consider buy an axie
+const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit , in ETH
+const MIN_PROFIT_DIFF_PERCENTAGE = 10 // the minimum difference in % on the floor price to consider buy an axie
 const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
-// const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
-// const MAX_EXISTENCE = 40 // the maximun number of similar on existence to consider buy an axie
-// const BUY_UNIQUES = false // if true, it will AUTOAMTICALLY buy any unique axies that meet the criteria (MAX_PRICE,MAX_BREEDS,MIN_PURENESS)
+const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
+// TODO:
+// const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consider buy an axie
+// const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
+// const AUTO_BUY_PRICE = ethers.utils.parseUnits('0.01', 'ether') // the price to auto buy the axie, in ETH, if all the conditions are met
 // const NOTIFY_UNIQUES = true // if true, it will notify about unique axies that meet the criteria (MAX_PRICE,MAX_BREEDS,MIN_PURENESS)
 
 // this script will check for the latest listings at the marketplace and compare them with the orders on the market
 export const opportunityChecker = async () => {
   // track time
-  const startTime = Date.now()
-  // console.log('\x1b[36m%s\x1b[0m', 'opportunity checking started')
+  const sTime = Date.now()
 
   // get latest listings from api
   const listings = await fetchMarketRecentlistings()
@@ -50,22 +51,17 @@ export const opportunityChecker = async () => {
     return
   }
 
-  // check if there are any new orders
-  if (listings[0].id === undefined) {
-    console.log('\x1b[91m%s\x1b[0m', 'no axie ids found')
-    return
-  }
-
   // get last axie id from redis
   const mostRecentSavedAxieId = await getMostRecentlistingsAxieId()
-  // console.log('mostRecentSavedAxieId', mostRecentSavedAxieId)
 
-  // check if its still the most recent, if not, save it
+  // check if its still the most recent
   if (mostRecentSavedAxieId === listings[0].id) {
     console.log('\x1b[36m%s\x1b[0m', 'opportunity checking finished, no new listings')
     return
   }
-  await setMostRecentlistingsAxieId(listings[0].id)
+
+  // save the most recent listings id to redis
+  void setMostRecentlistingsAxieId(listings[0].id)
 
   // interate over the listings and check if there is an opportunity
   const items: IAxieOpportunityItem[] = []
@@ -92,23 +88,28 @@ export const opportunityChecker = async () => {
       continue
     }
 
-    // todo: fix, check for all classes not only the listing class
-    // check if the axie has more than the min number of pureness
-    // const pureness = listing.parts.filter((part: any) => part.class === listing.class).length
-    // if (pureness < MIN_PURENESS) {
-    //   console.log(pureness, MIN_PURENESS)
-    //   console.log(`skiping ${listing.id} has ${pureness} pureness and is under ${MIN_PURENESS}`)
-    //   continue
-    // }
+    // pureness is the max number of parts that are the same class
+    // if its the same class as the axie, multiply its pureness points by 2
+    const pureness = listing.parts.reduce((acc, part) => {
+      if (part.class === listing.class) {
+        return acc + 2
+      }
+      return acc + 1
+    }, 0)
+    // console.log('pureness', pureness)
+    if (pureness < MIN_PURENESS) {
+      console.log(`skiping ${listing.id} has ${pureness} pureness and is under ${MIN_PURENESS}`)
+      continue
+    }
 
-    // check if the axie has less than the max number of similar listings
+    // check if the axie has less than the max number on sale
     const criteria: ICriteria = {
       classes: [listing.class],
       parts: listing.parts.map((part) => part.id)
       // todo: fix breeding count results
       // breedCount: [listing.breedCount]
     }
-    const similarMarketListings = await fetchMarketByCriteria(
+    const similarMarketOrders = await fetchMarketByCriteria(
       criteria,
       0,
       100,
@@ -119,16 +120,16 @@ export const opportunityChecker = async () => {
       criteria
     )
 
-    if (similarMarketListings === false || similarAxies === false) {
-      console.log('\x1b[91m%s\x1b[0m', 'error fetching similar listings')
+    if (similarMarketOrders === false || similarAxies === false) {
+      console.log('\x1b[91m%s\x1b[0m', 'error fetching on sale')
       return
     }
 
     // limited to 100 listings per request
-    const results = similarMarketListings.results
+    const results = similarMarketOrders.results
     let from = 0
-    if (similarMarketListings.total > 100) {
-      const total = similarMarketListings.total
+    if (similarMarketOrders.total > 100) {
+      const total = similarMarketOrders.total
       while (total > results.length) {
         from += 100
         const res = await fetchMarketByCriteria(
@@ -149,23 +150,19 @@ export const opportunityChecker = async () => {
     }
 
     const totalAxies = similarAxies.total
-    // const rateListed = totalListed / totalAxies
-    // console.log(totalAxies, totalListed, rateListed)
+    // const rateListed = totalOnSale / totalAxies
+    // console.log(totalAxies, totalOnSale, rateListed)
 
-    // get floor price from similar listings, excluding the current listing
-    const similarListings = similarMarketListings.results.filter((axie) => {
+    // get floor price from on sale, excluding the current listing
+    const similarListings = similarMarketOrders.results.filter((axie) => {
       return axie.id !== listing.id
     })
-    // const totalListed = similarListings.length
-    const totalListed = similarMarketListings.total - 1 // -1 to exclude the current listing
-    if (totalListed === 0) {
-      console.log(`skiping ${listing.id} has no similar listings`)
-      continue
-    }
+    // const totalOnSale = similarListings.length
+    const totalOnSale = similarMarketOrders.total - 1 // -1 to exclude the current listing
 
     // console.log('floorPrice', ethers.utils.formatEther(floorPrice))
-    if (totalListed > MAX_SIMILAR || totalListed < MIN_SIMILAR) {
-      console.log(`skiping ${listing.id} has ${totalListed} similar listings and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
+    if (totalOnSale > MAX_SIMILAR || totalOnSale < MIN_SIMILAR) {
+      // console.log(`skiping ${listing.id} has ${totalOnSale} similar on sale and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
       continue
     }
 
@@ -201,7 +198,7 @@ export const opportunityChecker = async () => {
       class: listing.class,
       parts: listing.parts,
       rarity,
-      totalListed,
+      totalOnSale,
       totalAxies
     })
   }
@@ -223,10 +220,10 @@ export const opportunityChecker = async () => {
       const color = getClassColor(item.class)
       embeds.push(
         {
-          title: `New ${item.rarity} ${item.class.toLowerCase()} ${item.estimatedPercentage}% flip chance`,
-          description: `Price:${ethers.utils.formatEther(item.currentPrice)}Ξ
-          Floor: ${ethers.utils.formatEther(item.floorPrice)}Ξ
-          Estimated Profit: ${ethers.utils.formatEther(item.profit)}Ξ`,
+          title: `${item.rarity} ${item.class.toLowerCase()} ${item.estimatedPercentage}% flip chance`,
+          description: `Price:${ethers.utils.formatEther(item.currentPrice).slice(0, 6)}Ξ
+          Floor: ${ethers.utils.formatEther(item.floorPrice).slice(0, 6)}Ξ
+          Est. Profit: ${ethers.utils.formatEther(item.profit).slice(0, 6)}Ξ`,
           color,
           thumbnail: {
             url: `https://axiecdn.axieinfinity.com/axies/${item.axieId}/axie/axie-full-transparent.png`
@@ -239,7 +236,7 @@ export const opportunityChecker = async () => {
             },
             {
               name: 'Similar Listing',
-              value: item.totalListed,
+              value: item.totalOnSale,
               inline: true
             },
             {
@@ -280,11 +277,11 @@ export const opportunityChecker = async () => {
       method: 'POST',
       body:
       {
-        content: `New opportunit${embeds.length > 1 ? 'ies' : 'y'} found!`,
+        // content: 'The scalper found something.',
         embeds
       }
     })
   }
 
-  console.log('\x1b[36m%s\x1b[0m', `opportunity checking finished after ${Date.now() - startTime}ms`)
+  console.log('\x1b[36m%s\x1b[0m', `opportunity checking finished after ${Date.now() - sTime}ms`)
 }
