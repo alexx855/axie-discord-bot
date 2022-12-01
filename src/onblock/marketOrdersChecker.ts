@@ -1,28 +1,19 @@
 import { ethers } from 'ethers'
 import { run } from 'hardhat'
-import { ICriteria, IMarketBuyOrder } from './interfaces'
-import { getMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from './market'
-import { DiscordRequest } from './utils'
+import { ICriteria, IMarketBuyOrder } from '../interfaces'
+import { getMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
+import { DiscordRequest } from '../utils'
 
 const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while
 
-export const saveLatestMarketSales = async () => {
-  console.log('saveLatestMarketSales started')
-  // todo: get latest sales from the market api and save it to postgres db
-}
-
-export const marketOrdersChecker = async () => {
-  // track time
-  // const startTime = Date.now()
-  console.log('marketOrdersChecker started')
-
+const marketOrdersChecker = async (blockNumber: number) => {
   try {
     // get buy orders from redis
     const marketOrders = await getMarketOrders()
     if (marketOrders.length > 0) {
       for (let i = 0; i < marketOrders.length; i++) {
         const marketOrder = marketOrders[i]
-        console.log(`checking order ${marketOrder.id} for user ${marketOrder.userId}`)
+        // console.log(`checking order ${marketOrder.id} for user ${marketOrder.userId}`)
 
         // validate the marketProps, not the same as the graphql criteria
         const criteria: ICriteria = {}
@@ -39,12 +30,12 @@ export const marketOrdersChecker = async () => {
 
         if (marketProps.breedCount !== undefined) {
           // convert strings in the array to numbers
-          criteria.breedCount = marketProps.breedCount?.map((item) => parseInt(item, 10))
+          criteria.breedCount = marketProps.breedCount?.map((item) => Number(item))
         }
 
         if (marketProps.pureness !== undefined) {
           // convert strings in the array to numbers
-          criteria.pureness = marketProps.pureness.map((item) => parseInt(item, 10))
+          criteria.pureness = marketProps.pureness.map((item) => Number(item))
         }
 
         // add ! to the excluded parts and merge with the criteria parts array
@@ -61,8 +52,7 @@ export const marketOrdersChecker = async () => {
         const res = await fetchMarketByCriteria(criteria, 0, 3, 'Latest', 'Sale')
 
         if (res === false) {
-          console.log('\x1b[91m%s\x1b[0m', 'error fetching market api')
-          continue
+          throw new Error('error fetching API')
         }
 
         // get the first result, the cheapest one
@@ -101,20 +91,21 @@ export const marketOrdersChecker = async () => {
 
           // call the hardhart task buy with the order as argument
           const tx: string = await run('buy', { order: JSON.stringify(order) })
+          console.log('\x1b[33m%s\x1b[0m', 'The scalper did buy something!')
           console.log(`--tx ${tx}`)
           const txLink = `https://explorer.roninchain.com/tx/${tx}`
 
           // send a message to the discord channel if we've defined one
           if (process.env.BOT_CHANNEL_ID !== undefined) {
-            await DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
+            void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
               method: 'POST',
               body:
-            {
-              embeds: [{
-                title: `Market order ${order.id} for axie ${axieId} triggered`,
-                description: `tx: ${txLink}`
-              }]
-            }
+              {
+                embeds: [{
+                  title: `Market order ${order.id} for axie ${axieId} triggered`,
+                  description: `tx: ${txLink}`
+                }]
+              }
             })
           }
         }
@@ -122,6 +113,8 @@ export const marketOrdersChecker = async () => {
     }
   } catch (error) {
     console.log(error)
-    // todo: re create order if tx fails, or retry with the next result
+    throw error
   }
 }
+
+export default marketOrdersChecker

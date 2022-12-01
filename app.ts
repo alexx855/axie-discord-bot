@@ -16,9 +16,10 @@ import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
 import { getMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
-import { opportunityChecker } from './src/opportunity'
 import { config } from 'hardhat'
 import * as dotenv from 'dotenv'
+import marketOrdersChecker from './src/onblock/marketOrdersChecker'
+import marketRecentAxiesChecker from './src/onblock/marketRecentAxiesChecker'
 dotenv.config()
 
 // Create an express app
@@ -53,7 +54,7 @@ app.post('/interactions', async (req, res) => {
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data
-    console.log('Command name:', name)
+    // console.log('Command name:', name)
     if (name === 'axie') {
       // Send a message into the channel where command was triggered from
       const axieId = data.options[0].value as string
@@ -91,7 +92,7 @@ app.post('/interactions', async (req, res) => {
       let content = ''
 
       if (orders.length > 0) {
-        console.log('orders', orders)
+        // console.log('orders', orders)
         content = `I've the following open order${orders.length > 1 ? 's' : ''}:\r\n`
 
         for (const order of orders) {
@@ -277,7 +278,7 @@ app.post('/interactions', async (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log('Listening on port', PORT)
+  // console.log('Listening on port', PORT)
   if (process.env.APP_ID === undefined || process.env.GUILD_ID === undefined) {
     console.log('Missing env vars, exiting...')
     process.exit(1)
@@ -308,10 +309,21 @@ app.listen(PORT, () => {
     const diff = Date.now() - time
     time = Date.now()
     if (diff > 1000) {
-      console.log(`new block ${blockNumber} received after ${diff}ms`)
-      void opportunityChecker()
-      // void marketOrdersChecker()
-      // todo: save recent sales to postgres
+      console.log('\x1b[33m%s\x1b[0m', `new block ${blockNumber} received after ${diff}ms`)
+      // track time
+      const sTime = Date.now()
+
+      // console.log('\x1b[36m%s\x1b[0m', 'marketOrdersChecker started')
+      void marketOrdersChecker(blockNumber)
+        .catch((error) => console.log(error))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketOrdersChecker finished after ${Date.now() - sTime}ms`))
+
+      // console.log('\x1b[92m%s\x1b[0m', 'marketRecentAxiesChecker started')
+      void marketRecentAxiesChecker(blockNumber)
+        .catch((error) => console.log(error))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentAxiesChecker finished after ${Date.now() - sTime}ms`))
+
+      // TODO: save recent sales to postgres
     }
   })
 })
