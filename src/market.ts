@@ -132,7 +132,7 @@ export async function fetchMarketRecentlistings() {
   // todo: refactor as default params so i can change the size and from
   const variables = {
     from: 0,
-    size: 100,
+    size: 5,
     sort: 'Latest',
     auctionType: 'Sale'
   }
@@ -157,6 +157,7 @@ export async function fetchMarketRecentlistings() {
         }>
       }
     }
+    message?: string
     errors?: Array<{
       message: string
     }>
@@ -268,8 +269,9 @@ export async function fetchMarketByCriteria(
         }>
       }
     }
+    message?: string
     errors?: Array<{
-      message: string
+      message: string // ???
     }>
   }
   const variables: {
@@ -294,6 +296,12 @@ export async function fetchMarketByCriteria(
   // console.log('res', res)
   if (res === null || res.errors !== undefined || res.data === undefined) {
     console.log('error fetching market by criteria', res)
+    // { message: 'API rate limit exceeded' }
+    if ((res != null) && res.message === 'API rate limit exceeded') {
+      // wait for 10 secs
+      await new Promise(resolve => setTimeout(resolve, 10000))
+    }
+
     // throw new Error('error fetching market by criteria')
     return false
   }
