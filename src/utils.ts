@@ -15,7 +15,6 @@ export const redisClient = createClient({
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
 }).on('error', (err) => console.log('Redis redisClient Error', err))
-// redisClient.connect().catch((err) => console.log('Redis redisClient Error', err))
 
 // postgres client
 export const postgresClient = new Client(
@@ -27,7 +26,6 @@ export const postgresClient = new Client(
     port: 5432
   }
 ).on('error', (err) => console.log('Postgres postgresClient Error', err))
-// postgresClient.connect().catch((err) => console.log('Postgres postgresClient Error', err))
 
 export function VerifyDiscordRequest(clientKey: string) {
   return function (req: any, res: any, buf: any, encoding: any) {
@@ -71,7 +69,7 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export async function fetchApi<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<T | null> {
+export async function fetchAxieQuery<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<T | null> {
   try {
     const response = await fetch(GRAPHQL_URL, {
       method: 'POST',
@@ -104,7 +102,7 @@ export const getRandomMessage = async (): Promise<string | false> => {
       message: string
     }
   }
-  const res = await fetchApi<IRandomMessage>(query, {})
+  const res = await fetchAxieQuery<IRandomMessage>(query, {})
 
   if (res === null || res.data === undefined) {
     return false
@@ -133,7 +131,7 @@ export const createAccessTokenWithSignature = async (owner: string, message: str
   }
 
   const variables = { input: { mainnet: 'ronin', owner, message, signature } }
-  const res = await fetchApi<ICreateAccessTokenResponse>(query, variables)
+  const res = await fetchAxieQuery<ICreateAccessTokenResponse>(query, variables)
 
   if (res !== null) {
     if (res.data?.createAccessTokenWithSignature.accessToken !== undefined) {
@@ -241,100 +239,11 @@ export async function InstallGuildCommand(
   }
 }
 
-export function getClassColor(axieClassName: string) {
-  let color = 0x000000
-  switch (axieClassName) {
-    case 'Beast':
-      color = 0xfdb014
-      break
-    case 'Bug':
-      color = 0xff433e
-      break
-    case 'Bird':
-      color = 0xfa59a0
-      break
-    case 'Plant':
-      color = 0xafdb1b
-      break
-    case 'Aquatic':
-      color = 0x00f5f8
-      break
-    case 'Reptile':
-      color = 0x9967fb
-      break
-    case 'Dusk':
-      color = 0x29fae
-      break
-    case 'Dawn':
-      color = 0x7183e3
-      break
-    case 'Mech':
-      color = 0x71898e
-      break
-    default:
-      color = 0xffffff
-      break
-  }
-
-  return color
-}
-
-export async function getAxieTransferHistory(axieId: string) {
-  const query = 'query GetAxieTransferHistory($axieId: ID!, $from: Int!, $size: Int!) {\n\taxie(axieId: $axieId) {\n\t\tid\n\t\ttransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\tethereumTransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\nfragment TransferRecords on TransferRecords {\n\ttotal\n\tresults {\n\t\tfrom\n\t\tto\n\t\ttimestamp\n\t\ttxHash\n\t\twithPrice\n\t\t__typename\n\t}\n\t__typename\n}\n'
-  interface IGetAxieTransferHistoryResponse {
-    data: {
-      axie: {
-        id: string
-        transferHistory: {
-          total: number
-          results: Array<{
-            from: string
-            to: string
-            timestamp: number
-            txHash: string
-            withPrice: number
-          }>
-        }
-        ethereumTransferHistory: {
-          total: number
-          results: Array<{
-            from: string
-            to: string
-            timestamp: number
-            txHash: string
-            withPrice: number
-          }>
-        }
-      }
-    }
-  }
-  const variables = { axieId, from: 0, size: 5 }
-  const res = await fetchApi<IGetAxieTransferHistoryResponse>(query, variables)
-  return res === null || res.data.axie === undefined ? null : res.data.axie
-}
-
-// const minPrice = ethers.BigNumber.from((await getMinPriceAxie(listing.id)))
-// console.log(`minPrice: ${ethers.utils.formatEther(minPrice)}`)
-export async function getMinPriceAxie(axieId: string) {
-  const query = 'query GetMinPriceAxie($axieId: ID!) {\n  axie(axieId: $axieId) {\n    id\n    minPrice\n    __typename\n  }\n}\n'
-  interface IGetMinPriceAxieResponse {
-    data: {
-      axie: {
-        id: string
-        minPrice: number
-      }
-    }
-  }
-  const variables = { axieId }
-  const res = await fetchApi<IGetMinPriceAxieResponse>(query, variables)
-  return res === null || res.data.axie === undefined ? null : res.data.axie.minPrice
-}
-
 export async function getFloorPrice() {
   await redisClient.connect()
   const lastId = await redisClient.get('floorPrice')
   await redisClient.disconnect()
-  return lastId ?? '0'
+  return lastId ?? null
 }
 
 export async function setFloorPrice(price: string) {

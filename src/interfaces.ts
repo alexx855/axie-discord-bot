@@ -19,7 +19,6 @@ export interface IMarketBuyOrder {
   maker: string
   assets: IAsset[]
   basePrice: string
-  triggerPrice: string
   currentPrice: string
   endedAt: string
   endedPrice: string
@@ -69,6 +68,59 @@ export interface IScalpedAxie {
   estimatedPercentage: number
   rarity: 'Common' | 'Rare' | 'Epic' | 'Unique'
   pureness: number
-  lastSoldPrice: string
-  lastSoldDate: string
+  lastSoldPrice?: string
+  lastSoldDate?: string
+}
+
+export interface IAxieData {
+  data: {
+    axie: {
+      id: string
+      class: string
+      chain: string
+      name: string
+      newGenes: string
+      ownerProfile: {
+        name: string | null
+      }
+      breedCount: number
+      order: {
+        currentPrice: string
+        currentPriceUsd: string
+      } | null
+      owner: string
+      stats: {
+        hp: number
+        speed: number
+        skill: number
+        morale: number
+      }
+      potentialPoints: {
+        beast: number
+        aquatic: number
+        plant: number
+        bug: number
+        bird: number
+        reptile: number
+        mech: number
+        dawn: number
+        dusk: number
+      }
+      parts: Array<{
+        id: string
+        name: string
+        type: string
+        class: string
+        specialGenes: string
+        stage: number
+      }>
+      title: string
+      description: string
+      thumbnail: {
+        url: string
+      }
+      color: number
+      type: string
+    }
+  }
 }

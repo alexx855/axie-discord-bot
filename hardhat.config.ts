@@ -12,7 +12,7 @@ import { HardhatUserConfig, task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber } from 'ethers'
 import { ICriteria, IMarketBuyOrder } from './src/interfaces'
-import { fetchApi, getRandomMessage, createAccessTokenWithSignature } from './src/utils'
+import { fetchAxieQuery, getRandomMessage, createAccessTokenWithSignature } from './src/utils'
 import * as fs from 'fs/promises'
 import * as dotenv from 'dotenv'
 import { getAxieData, getAxieEstimatedPrice } from './src/axies'
@@ -27,11 +27,12 @@ task('buy', 'Buy and axie from the marketplace')
     try {
       const order: IMarketBuyOrder = JSON.parse(taskArgs.order)
 
-      const axieId = parseInt(order.axieId, 10)
-      if (isNaN(axieId)) {
-        console.log('Invalid Axie ID provided')
-        return false
-      }
+      // todo: validate axies id with rpc
+      // const axieId = order.axieId
+      // if (isValidAxieId(axieId)) {
+      //   console.log('Invalid Axie ID provided')
+      //   return false
+      // }
 
       const accounts = await hre.ethers.getSigners()
       const signer = accounts[0]
@@ -221,7 +222,7 @@ task('unlist', 'Unlist an axie on the marketplace')
         }
       }
 
-      const result = await fetchApi<IAxieOrderResult>(query, variables)
+      const result = await fetchAxieQuery<IAxieOrderResult>(query, variables)
       // console.log('result', result)
       if (result === null || result.data === undefined || result.data.axie.order == null) {
         console.log('Axie is not listed on the marketplace')
@@ -529,7 +530,7 @@ task('list', 'List an axie on the marketplace')
         }>
       }
       // send the create order mutation
-      const result = await fetchApi<ICreateOrderResult>(query, variables, headers)
+      const result = await fetchAxieQuery<ICreateOrderResult>(query, variables, headers)
       // console.log('result', result)
       if (result === null) {
         console.log('Error creating order')
@@ -571,7 +572,7 @@ task('list', 'List an axie on the marketplace')
         }>
       }
 
-      const activityResult = await fetchApi<IActivityResult>(activityQuery, activityVariables, headers)
+      const activityResult = await fetchAxieQuery<IActivityResult>(activityQuery, activityVariables, headers)
       // console.log('activityResult', activityResult)
 
       if (activityResult === null || activityResult.data === undefined) {
@@ -653,7 +654,7 @@ task('listall', 'List all axies on the marketplace', async (taskArgs, hre) => {
       const criteria: ICriteria = {
         classes: [axieData.class],
         parts: axieData.parts.map((part) => part.id)
-        // todo: fix breeding count results
+        // todo: add breeding count results
         // breedCount: [axieData.breedCount]
       }
       const similarAxies = await fetchMarketByCriteria(
@@ -669,24 +670,21 @@ task('listall', 'List all axies on the marketplace', async (taskArgs, hre) => {
       const totalAxies = similarAxies.total
       const rarity = totalAxies === 1 ? 'unique' : totalAxies < 100 ? 'epic' : totalAxies < 1000 ? 'rare' : 'common'
 
-      // // continue if axie is unique
-      // if (rarity === 'unique') {
-      //   console.log('Axie is unique, skipping')
-      //   continue
-      // }
-
-      // // get axie breeds, continue if is rare && breed 0
-      // if (rarity === 'rare' && axieData.breedCount === 0) {
-      //   console.log('Rare axie with breed 0, skipping')
-      //   continue
-      // }
-
-      const minPrice = '0.008' // in ETH
-      const estPrice = await getAxieEstimatedPrice(axie, minPrice)
-      if (estPrice === false) {
-        console.log('Error getting axie estimated price')
+      // continue if axie is unique
+      if (rarity === 'unique') {
+        console.log('Axie is unique, skipping')
         continue
       }
+
+      // get axie breeds, continue if is rare && breed 0
+      if (rarity === 'rare' && axieData.breedCount === 0) {
+        console.log('Rare axie with breed 0, skipping')
+        continue
+      }
+
+      const minPrice = '0.006' // in ETH
+      const estPrice = await getAxieEstimatedPrice(axieData, minPrice)
+
       const estimatedBasePrice = hre.ethers.BigNumber.from(estPrice)
       const basePrice = hre.ethers.utils.formatEther(estimatedBasePrice)
       console.log('Base price:', basePrice)

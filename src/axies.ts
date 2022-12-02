@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
-import { ICriteria, IDiscordEmbed } from './interfaces'
+import { IAxieData, ICriteria, IDiscordEmbed, IMarketBuyOrder } from './interfaces'
 import { fetchMarketByCriteria } from './market'
-import { fetchApi, getClassColor } from './utils'
+import { DiscordRequest, fetchAxieQuery } from './utils'
 
 export const getAxieData = async (axieId: string) => {
   // Send a simple query to the graphql api to get the axie data
@@ -127,66 +127,12 @@ fragment AssetInfo on Asset {
   orderId
 }
 `
-
-  interface IAxieData {
-    data: {
-      axie: {
-        id: string
-        class: string
-        chain: string
-        name: string
-        newGenes: string
-        ownerProfile: {
-          name: string | null
-        }
-        breedCount: number
-        order: {
-          currentPrice: string
-          currentPriceUsd: string
-        } | null
-        owner: string
-        stats: {
-          hp: number
-          speed: number
-          skill: number
-          morale: number
-        }
-        potentialPoints: {
-          beast: number
-          aquatic: number
-          plant: number
-          bug: number
-          bird: number
-          reptile: number
-          mech: number
-          dawn: number
-          dusk: number
-        }
-        parts: Array<{
-          id: string
-          name: string
-          type: string
-          class: string
-          specialGenes: string
-          stage: number
-        }>
-        title: string
-        description: string
-        thumbnail: {
-          url: string
-        }
-        color: number
-        type: string
-      }
-    }
-  }
-
   const variables = {
     axieId
   }
 
   try {
-    const res = await fetchApi<IAxieData>(query, variables)
+    const res = await fetchAxieQuery<IAxieData>(query, variables)
     if (res === null || res.data === undefined || res.data.axie === null) {
       return false
     }
@@ -197,12 +143,45 @@ fragment AssetInfo on Asset {
   return false
 }
 
-export async function getAxieEstimatedPrice(axieId: string, minPrice: string) {
-  const axieData = await getAxieData(axieId)
-  if (axieData === false) {
-    return false
-  }
+export async function buyAxie(waitFortx: () => Promise<string>, order: IMarketBuyOrder) {
+  // call the hardhart task buy with the order as argument
+  const tx: string = await waitFortx()
+  console.log('\x1b[33m%s\x1b[0m', 'The bot will try to buy something...')
+  console.log(`--txhash ${tx}`)
+  const txLink = `https://explorer.roninchain.com/tx/${tx}`
 
+  // send a message to the discord channel if we've defined one
+  if (process.env.BOT_CHANNEL_ID !== undefined) {
+    const embed = await getAxieEmbed(order.axieId)
+
+    void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
+      method: 'POST',
+      body:
+      {
+        content: `Market order ${order.id} triggered`,
+        tts: false,
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                label: 'Open Tx on Ronin explorer',
+                style: 5,
+                url: txLink
+              }
+            ]
+          }
+        ],
+        embeds: [embed]
+      }
+    })
+
+    // todo: validate if the tx failed, update the message with the error or the success
+  }
+}
+
+export async function getAxieEstimatedPrice(axieData: IAxieData['data']['axie'], minPrice: string) {
   // todo: get axie cards stats from the api
   const { parts } = axieData
 
@@ -223,13 +202,22 @@ export async function getAxieEstimatedPrice(axieId: string, minPrice: string) {
 
   // the min floor price for the axies that cannot be valued
   const MIN_PRICE = ethers.utils.parseUnits(minPrice, 'ether')
+  if (!ethers.BigNumber.isBigNumber(MIN_PRICE)) {
+    throw new Error('Invalid min price')
+  }
+  // const marketMinPrice = String(await getMinPriceAxie(axieData.id))
+  // console.log('marketMinPrice', marketMinPrice)
   let floorPrice = MIN_PRICE.toString()
+  if (!ethers.BigNumber.isBigNumber(ethers.BigNumber.from(floorPrice))) {
+    throw new Error('Invalid floor price')
+  }
+
   if (similarMarketListings !== false) {
-    // if unique axie, multiply 30x the MIN_PRICE
-    if (similarMarketListings.total === 0) {
-      floorPrice = MIN_PRICE.mul(30).toString()
+    // if few listed or virgin , multiply 3x the MIN_PRICE
+    if (axieData.breedCount === 0 || similarMarketListings.total < 100) {
+      floorPrice = MIN_PRICE.mul(3).toString()
     } else {
-    // get the floor price from the market listings
+      // get the floor price from the market listings
       const currentPrice = ethers.BigNumber.from(similarMarketListings.results[0].order.currentPrice)
       // reduce the floor price by 1% so it will be the new floor price
       floorPrice = currentPrice.sub(currentPrice.div(100)).toString()
@@ -259,7 +247,7 @@ export async function getAxieEmbed(axieId: string): Promise<false | IDiscordEmbe
   if (axie.order !== null) {
     const currentPrice = ethers.utils.formatEther(axie.order.currentPrice)
     content = content + `\n**On Sale:** Ξ${currentPrice} (${axie.order.currentPriceUsd} USD)`
-    content = content + `\nhttps://marketplace.axieinfinity.com/axie/${axie.id}`
+    content = content + `\nhttps://app.axieinfinity.com/marketplace/axies/${axie.id}`
   }
 
   content = content + `\n\r**Parts:**\n${axie.parts.map((part) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
@@ -282,4 +270,93 @@ export async function getAxieEmbed(axieId: string): Promise<false | IDiscordEmbe
     type: 'rich'
   }
   return embed
+}
+
+export function getClassColor(axieClassName: string) {
+  let color = 0x000000
+  switch (axieClassName) {
+    case 'Beast':
+      color = 0xfdb014
+      break
+    case 'Bug':
+      color = 0xff433e
+      break
+    case 'Bird':
+      color = 0xfa59a0
+      break
+    case 'Plant':
+      color = 0xafdb1b
+      break
+    case 'Aquatic':
+      color = 0x00f5f8
+      break
+    case 'Reptile':
+      color = 0x9967fb
+      break
+    case 'Dusk':
+      color = 0x29fae
+      break
+    case 'Dawn':
+      color = 0x7183e3
+      break
+    case 'Mech':
+      color = 0x71898e
+      break
+    default:
+      color = 0xffffff
+      break
+  }
+
+  return color
+}
+
+export async function getAxieTransferHistory(axieId: string) {
+  const query = 'query GetAxieTransferHistory($axieId: ID!, $from: Int!, $size: Int!) {\n\taxie(axieId: $axieId) {\n\t\tid\n\t\ttransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\tethereumTransferHistory(from: $from, size: $size) {\n\t\t\t...TransferRecords\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\nfragment TransferRecords on TransferRecords {\n\ttotal\n\tresults {\n\t\tfrom\n\t\tto\n\t\ttimestamp\n\t\ttxHash\n\t\twithPrice\n\t\t__typename\n\t}\n\t__typename\n}\n'
+  interface IGetAxieTransferHistoryResponse {
+    data: {
+      axie: {
+        id: string
+        transferHistory: {
+          total: number
+          results: Array<{
+            from: string
+            to: string
+            timestamp: number
+            txHash: string
+            withPrice: number
+          }>
+        }
+        ethereumTransferHistory: {
+          total: number
+          results: Array<{
+            from: string
+            to: string
+            timestamp: number
+            txHash: string
+            withPrice: number
+          }>
+        }
+      }
+    }
+  }
+  const variables = { axieId, from: 0, size: 5 }
+  const res = await fetchAxieQuery<IGetAxieTransferHistoryResponse>(query, variables)
+  return res === null || res.data.axie === undefined ? null : res.data.axie
+}
+
+// const minPrice = ethers.BigNumber.from((await getMinPriceAxie(listing.id)))
+// console.log(`minPrice: ${ethers.utils.formatEther(minPrice)}`)
+export async function getMinPriceAxie(axieId: string) {
+  const query = 'query GetMinPriceAxie($axieId: ID!) {\n  axie(axieId: $axieId) {\n    id\n    minPrice\n    __typename\n  }\n}\n'
+  interface IGetMinPriceAxieResponse {
+    data: {
+      axie: {
+        id: string
+        minPrice: number
+      }
+    }
+  }
+  const variables = { axieId }
+  const res = await fetchAxieQuery<IGetMinPriceAxieResponse>(query, variables)
+  return res === null || res.data.axie === undefined ? null : res.data.axie.minPrice
 }

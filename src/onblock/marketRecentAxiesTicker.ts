@@ -1,9 +1,9 @@
 import { ethers } from 'ethers'
 import { run } from 'hardhat'
-import { getAxieEmbed } from '../axies'
+import { buyAxie, getAxieTransferHistory, getClassColor } from '../axies'
 import { IScalpedAxie, ICriteria, IMarketBuyOrder } from '../interfaces'
 import { fetchMarketRecentlistings, getMostRecentlistingsAxieId, setMostRecentlistingsAxieId, fetchMarketByCriteria } from '../market'
-import { getClassColor, DiscordRequest, getAxieTransferHistory, getFloorPrice } from '../utils'
+import { DiscordRequest, getFloorPrice } from '../utils'
 
 const AUTO_BUY_FLOOR = true // set to true to auto buy axies at floor price that are bellow the max price
 const AUTO_BUY_MAX_PRICE = ethers.utils.parseUnits('0.002', 'ether') // the max price to auto buy a floor axie, in ETH, if all the conditions are met
@@ -18,13 +18,13 @@ const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consi
 const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
 
 // this script will check for the latest axies listings at the marketplace and look for axies that meet the criteria
-const marketRecentAxiesChecker = async (blockNumber: number) => {
+const marketRecentAxiesTicker = async (blockNumber: number) => {
   try {
     // get latest market listings from api
     const listings = await fetchMarketRecentlistings()
     if (listings === false) {
       // console.log('\x1b[91m%s\x1b[0m', 'error fetching latest listings')
-      throw new Error('error fetching API from marketRecentAxiesChecker')
+      throw new Error('error fetching API from marketRecentAxiesTicker')
     }
 
     // get last axie id from redis
@@ -118,43 +118,12 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
           signature: listing.order.signature
         }
 
-        // // call the hardhart task buy with the order as argument
-        const tx: string = await run('buy', { order: JSON.stringify(order) })
-        console.log('\x1b[33m%s\x1b[0m', 'The scalper did buy something!')
-        console.log(`--tx ${tx}`)
-        const txLink = `https://explorer.roninchain.com/tx/${tx}`
+        // buy the axie
+        await buyAxie(async () => await run('buy', { order: JSON.stringify(order) }), order).catch((err) => {
+          console.log('\x1b[91m%s\x1b[0m', `error buying axie ${order.axieId} `)
+          console.log(err)
+        })
 
-        // send a message to the discord channel if we've defined one
-        if (process.env.BOT_CHANNEL_ID !== undefined) {
-          const embed = await getAxieEmbed(axieId)
-
-          void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
-            method: 'POST',
-            body:
-            {
-              content: `Market order ${order.id} for axie ${axieId} triggered`,
-              tts: false,
-              components: [
-                {
-                  type: 1,
-                  components: [
-                    {
-                      type: 2,
-                      label: 'Open Tx on Ronin explorer',
-                      style: 5,
-                      url: txLink
-                    }
-                  ]
-                }
-              ],
-              embeds: [embed]
-            }
-          })
-
-          // todo: validate if the tx failed, update the message with the error or the success
-        }
-
-        // end the loop, max 1 order/tx per block
         break
       }
 
@@ -317,4 +286,4 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
   }
 }
 
-export default marketRecentAxiesChecker
+export default marketRecentAxiesTicker
