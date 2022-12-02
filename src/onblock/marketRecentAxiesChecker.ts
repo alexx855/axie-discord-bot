@@ -3,19 +3,16 @@ import { IScalpedAxie, ICriteria } from '../interfaces'
 import { fetchMarketRecentlistings, getMostRecentlistingsAxieId, setMostRecentlistingsAxieId, fetchMarketByCriteria } from '../market'
 import { getClassColor, DiscordRequest, getAxieTransferHistory } from '../utils'
 
-const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while
+// TODO: const AUTO_BUY_PRICE = ethers.utils.parseUnits('0.01', 'ether') // the price to auto buy the axie, in ETH, if all the conditions are met
+const MAX_PRICE = ethers.utils.parseUnits('1', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while
+const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit , in ETH
+const MIN_PROFIT_DIFF_PERCENTAGE = 40 // the minimum difference in % on the floor price to consider buy an axie
+const MAX_BREEDS = 7 // the maximum number of breeds to consider buy an axie
+const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
 const MAX_SIMILAR = 40 // the maximun number on sale to consider buy an axie
 const MIN_SIMILAR = 3 // the minimum number on sale to consider buy an axie
-const MIN_PROFIT = ethers.utils.parseUnits('0.004', 'ether') // the minimum profit , in ETH
-const MIN_PROFIT_DIFF_PERCENTAGE = 10 // the minimum difference in % on the floor price to consider buy an axie
-const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
-const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
-
-// TODO:
-// const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consider buy an axie
-// const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
-// const AUTO_BUY_PRICE = ethers.utils.parseUnits('0.01', 'ether') // the price to auto buy the axie, in ETH, if all the conditions are met
-// const NOTIFY_UNIQUES = true // if true, it will notify about unique axies that meet the criteria (MAX_PRICE,MAX_BREEDS,MIN_PURENESS)
+const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consider buy an axie
+const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
 
 // this script will check for the latest axies listings at the marketplace and look for axies that meet the criteria
 const marketRecentAxiesChecker = async (blockNumber: number) => {
@@ -24,7 +21,7 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
     const listings = await fetchMarketRecentlistings()
     if (listings === false) {
       // console.log('\x1b[91m%s\x1b[0m', 'error fetching latest listings')
-      throw new Error('error fetching API')
+      throw new Error('error fetching API from marketRecentAxiesChecker')
     }
 
     // get last axie id from redis
@@ -46,12 +43,13 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         break
       }
 
+      let lastSoldDate,
+        lastSoldPrice
+
       // get the last sold price from the similar Axie's listing history
-      const res = await getAxieTransferHistory(listing.id)
-      let lastSoldDate = '0'
-      let lastSoldPrice = '0'
-      if (res !== null && res.transferHistory.results.length > 0) {
-        const transferHistory = res.transferHistory
+      const transferHistoryData = await getAxieTransferHistory(listing.id)
+      if (transferHistoryData !== null && transferHistoryData.transferHistory.results.length > 0) {
+        const transferHistory = transferHistoryData.transferHistory
         // const ethereumTransferHistory = res.ethereumTransferHistory
         // get latest sold price and date from transferHistory.results[0].timestamp
         const sDate = new Date(transferHistory.results[0].timestamp * 1000)
@@ -63,7 +61,8 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         const now = new Date()
         const diff = now.getTime() - sDate.getTime()
         const diffHours = Math.round(diff / 1000 / 60 / 60)
-        if (diffHours < 12 && sPrice.lt(listing.order.currentPrice)) {
+        // check if the axie was sold less than 48 hours ago
+        if (diffHours < 48 && sPrice.lt(listing.order.currentPrice)) {
           // console.log(`skipping axie ${listing.id} already flipped`)
           continue
         }
@@ -99,8 +98,6 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
       const criteria: ICriteria = {
         classes: [listing.class],
         parts: listing.parts.map((part) => part.id)
-        // todo: fix breeding count results
-        // breedCount: [listing.breedCount]
       }
       const similarMarketListings = await fetchMarketByCriteria(
         criteria,
@@ -110,7 +107,7 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         'Sale'
       )
 
-      // ?? maybe just get the total from rpc instead to save an api request
+      // ?? maybe i can just get the total from rpc instead to save an api request
       const similarAxies = await fetchMarketByCriteria(
         criteria
       )
@@ -119,45 +116,48 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
         throw new Error('error fetching API')
       }
 
-      // limited to 100 listings per request
-      const results = similarMarketListings.results
-      let from = 0
-      if (similarMarketListings.total > 100) {
-        const total = similarMarketListings.total
-        while (total > results.length) {
-          from += 100
-          const res = await fetchMarketByCriteria(
-            criteria,
-            from,
-            100,
-            'Latest',
-            'Sale'
-          )
+      // // limited to 100 listings per request
+      // const results = similarMarketListings.results
+      // let from = 0
+      // if (similarMarketListings.total > 100) {
+      //   const total = similarMarketListings.total
+      //   while (total > results.length) {
+      //     from += 100
+      //     const res = await fetchMarketByCriteria(
+      //       criteria,
+      //       from,
+      //       100,
+      //       'Latest',
+      //       'Sale'
+      //     )
 
-          if (res !== false) {
-            results.push(...res.results)
-          }
+      //     if (res !== false) {
+      //       results.push(...res.results)
+      //     }
 
-          // await some time to avoid rate limit
-          await new Promise(resolve => setTimeout(resolve, 100))
-        }
-      }
+      //     // await some time to avoid rate limit
+      //     await new Promise(resolve => setTimeout(resolve, 100))
+      //   }
+      // }
 
-      const totalAxies = similarAxies.total
-      // const rateListed = totalOnSale / totalAxies
-      // console.log(totalAxies, totalOnSale, rateListed)
-
-      // get floor price from on sale, excluding the current listing
-      const similarListings = similarMarketListings.results.filter((axie) => {
-        return axie.id !== listing.id
-      })
-      // const totalOnSale = similarListings.length
       const totalOnSale = similarMarketListings.total - 1 // -1 to exclude the current listing
-
+      // check if the axie has less than the max number on sale
       if (totalOnSale > MAX_SIMILAR || totalOnSale < MIN_SIMILAR) {
         // console.log(`skiping ${listing.id} has ${totalOnSale} similar on sale and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
         continue
       }
+
+      // check if the axie has less than the max number on existence
+      const totalAxies = similarAxies.total
+      if (totalAxies > MAX_EXISTENCE || totalAxies < MIN_EXISTENCE) {
+        // console.log(`skiping ${listing.id} has ${totalAxies} similar on existence and is over ${MAX_EXISTENCE} or under ${MIN_EXISTENCE}`)
+        continue
+      }
+
+      // similar listings excluding the current one
+      const similarListings = similarMarketListings.results.filter((axie) => {
+        return axie.id !== listing.id
+      })
 
       const floorPrice = ethers.BigNumber.from(similarListings[0].order.currentPrice)
       // check if the similar floor price - current price is more than the min profit
@@ -195,21 +195,63 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
       })
     }
 
-    // send discord message with the scalper found
+    // send discord message
     if (items.length > 0) {
-      console.log('\x1b[33m%s\x1b[0m', 'The scalper found something new...')
-      console.log(items)
+      // console.log('\x1b[33m%s\x1b[0m', 'Recent listing met the criteria')
+      // console.log(items)
 
       if (process.env.BOT_CHANNEL_ID === undefined) {
-        console.log('BOT_CHANNEL_ID not set')
+        // console.log('BOT_CHANNEL_ID not set')
         return
       }
 
-      // create embed array with the scalper data
+      // create embed array with the scalped data
       const embeds = []
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
         const color = getClassColor(item.class)
+        const fields = [
+          {
+            name: 'Breeds',
+            value: item.breedCount,
+            inline: true
+          },
+          {
+            name: 'On Market',
+            value: item.totalOnSale,
+            inline: true
+          },
+          {
+            name: 'In Existence',
+            value: item.totalAxies,
+            inline: true
+          },
+          {
+            name: 'Parts',
+            value: item.parts.map((part) => `${part.id} (${part.class})`).join(', '),
+            inline: false
+          },
+          {
+            name: 'Axie URL',
+            value: `https://marketplace.axieinfinity.com/axie/${item.axieId}`,
+            inline: false
+          },
+          {
+            name: 'Similar URL',
+            value: `https://app.axieinfinity.com/marketplace/axies/?auctionTypes=Sale&parts=${item.parts.map(part => part.id).join('&parts=')}&classes=${item.class}`,
+            // &breedCount=0&breedCount=${item.breedCount}
+            inline: false
+          }
+        ]
+
+        if (item.lastSoldDate !== undefined && item.lastSoldPrice !== undefined) {
+          fields.push({
+            name: 'Sale history',
+            value: `Last sold: ${item.lastSoldDate}\nPrice: ${ethers.utils.formatEther(item.lastSoldPrice).slice(0, 6)}Ξ`,
+            inline: true
+          })
+        }
+
         embeds.push(
           {
             title: `${item.rarity} ${item.class.toLowerCase()} ${item.estimatedPercentage}% flip chance`,
@@ -218,51 +260,13 @@ const marketRecentAxiesChecker = async (blockNumber: number) => {
             thumbnail: {
               url: `https://axiecdn.axieinfinity.com/axies/${item.axieId}/axie/axie-full-transparent.png`
             },
-            fields: [
-              {
-                name: 'Breeds',
-                value: item.breedCount,
-                inline: true
-              },
-              {
-                name: 'On Market',
-                value: item.totalOnSale,
-                inline: true
-              },
-              {
-                name: 'In Existence',
-                value: item.totalAxies,
-                inline: true
-              },
-              {
-                name: 'Parts',
-                value: item.parts.map((part) => `${part.id} (${part.class})`).join(', '),
-                inline: false
-              },
-              {
-                name: 'Axie URL',
-                value: `https://marketplace.axieinfinity.com/axie/${item.axieId}`,
-                inline: false
-              },
-              {
-                name: 'Similar URL',
-                value: `https://app.axieinfinity.com/marketplace/axies/?auctionTypes=Sale&parts=${item.parts.map(part => part.id).join('&parts=')}&classes=${item.class}`,
-                // &breedCount=0&breedCount=${item.breedCount}
-                inline: false
-              },
-              {
-                name: 'Sale history',
-                value: `Last sold: ${item.lastSoldDate}\nPrice: ${ethers.utils.formatEther(item.lastSoldPrice).slice(0, 6)}Ξ`,
-                inline: true
-              }
-            ]
+            fields
           })
       }
       void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
         method: 'POST',
-        body:
-        {
-          content: 'The scalper found something new...',
+        body: {
+          content: 'Recent listing met the criteria',
           embeds
         }
       })
