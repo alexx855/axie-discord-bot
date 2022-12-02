@@ -312,3 +312,33 @@ export async function getAxieTransferHistory(axieId: string) {
   const res = await fetchApi<IGetAxieTransferHistoryResponse>(query, variables)
   return res === null || res.data.axie === undefined ? null : res.data.axie
 }
+
+// const minPrice = ethers.BigNumber.from((await getMinPriceAxie(listing.id)))
+// console.log(`minPrice: ${ethers.utils.formatEther(minPrice)}`)
+export async function getMinPriceAxie(axieId: string) {
+  const query = 'query GetMinPriceAxie($axieId: ID!) {\n  axie(axieId: $axieId) {\n    id\n    minPrice\n    __typename\n  }\n}\n'
+  interface IGetMinPriceAxieResponse {
+    data: {
+      axie: {
+        id: string
+        minPrice: number
+      }
+    }
+  }
+  const variables = { axieId }
+  const res = await fetchApi<IGetMinPriceAxieResponse>(query, variables)
+  return res === null || res.data.axie === undefined ? null : res.data.axie.minPrice
+}
+
+export async function getFloorPrice() {
+  await redisClient.connect()
+  const lastId = await redisClient.get('floorPrice')
+  await redisClient.disconnect()
+  return lastId ?? '0'
+}
+
+export async function setFloorPrice(price: string) {
+  await redisClient.connect()
+  await redisClient.set('floorPrice', price)
+  await redisClient.disconnect()
+}

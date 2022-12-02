@@ -20,6 +20,7 @@ import { config } from 'hardhat'
 import * as dotenv from 'dotenv'
 import marketOrdersChecker from './src/onblock/marketOrdersChecker'
 import marketRecentAxiesChecker from './src/onblock/marketRecentAxiesChecker'
+import marketFloorAxiesChecker from './src/onblock/marketFloorAxiesChecker'
 dotenv.config()
 
 // Create an express app
@@ -312,16 +313,20 @@ app.listen(PORT, () => {
       console.log('\x1b[33m%s\x1b[0m', `new block ${blockNumber} received after ${diff}ms`)
       // track time
       const sTime = Date.now()
-
-      // console.log('\x1b[36m%s\x1b[0m', 'marketOrdersChecker started')
-      void marketOrdersChecker(blockNumber)
+      // console.log('\x1b[92m%s\x1b[0m', 'marketFloorAxiesChecker started')
+      void marketFloorAxiesChecker(blockNumber)
         .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketOrdersChecker finished after ${Date.now() - sTime}ms`))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketFloorAxiesChecker finished after ${Date.now() - sTime}ms`))
 
       // console.log('\x1b[92m%s\x1b[0m', 'marketRecentAxiesChecker started')
       void marketRecentAxiesChecker(blockNumber)
         .catch((error) => console.log(error))
         .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentAxiesChecker finished after ${Date.now() - sTime}ms`))
+
+      // console.log('\x1b[36m%s\x1b[0m', 'marketOrdersChecker started')
+      void marketOrdersChecker(blockNumber)
+        .catch((error) => console.log(error))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketOrdersChecker finished after ${Date.now() - sTime}ms`))
 
       // TODO: save recent sales to postgres
     }
