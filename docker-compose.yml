@@ -32,7 +32,6 @@ services:
       - ./data-redis:/data
   admin:
     image: adminer
-    restart: always
     depends_on: 
       - postgres
     ports:
