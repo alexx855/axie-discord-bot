@@ -19,7 +19,7 @@ import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
 import { config } from 'hardhat'
 import * as dotenv from 'dotenv'
 import discordOrdersTicker from './src/onblock/discordOrdersTicker'
-import marketRecentAxiesTicker from './src/onblock/marketRecentAxiesTicker'
+import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
 import updateAxiesFloorPrice from './src/onblock/updateAxiesFloorPrice'
 import marketRecentSalesTicker from './src/onblock/marketRecentSalesTicker'
 
@@ -316,9 +316,9 @@ app.listen(PORT, () => {
       // track time
       const sTime = Date.now()
 
-      void marketRecentAxiesTicker(blockNumber)
+      void marketRecentListingsTicker(blockNumber)
         .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentAxiesTicker finished after ${Date.now() - sTime}ms`))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
 
       void discordOrdersTicker(blockNumber)
         .catch((error) => console.log(error))
