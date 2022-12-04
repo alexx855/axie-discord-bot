@@ -1,16 +1,18 @@
 {
   "name": "axie-discord-bot",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "author": {
     "name": "Alex Pedersen",
     "email": "mails@alexpedersen.dev"
   },
   "scripts": {
-    "start": "npx node-dev app.ts",
+    "dev": "npx node-dev app.ts",
+    "start": "npx ts-node app.ts",
     "eslint": "npx eslint . --ext .ts",
     "access-token": "npx hardhat generate-access-token",
     "account": "npx hardhat account",
-    "listall": "npx hardhat listall"
+    "listall": "npx hardhat listall",
+    "create-tables": "npx ts-node scripts/create_tables.ts"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.0",

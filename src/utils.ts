@@ -14,10 +14,11 @@ export const redisClient = createClient({
     port: 6379
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
-}).on('error', (err) => console.log('Redis redisClient Error', err))
+})
+// .on('error', (err) => console.log('Redis redisClient Error', err))
 
 // postgres client
-export const postgresClient = new Client(
+export const createPgClient = () => new Client(
   {
     user: process.env.POSTGRES_USER ?? 'postgres',
     host: process.env.POSTGRES_HOST ?? 'localhost',
@@ -25,7 +26,8 @@ export const postgresClient = new Client(
     password: process.env.POSTGRES_PASSWORD ?? 'password',
     port: 5432
   }
-).on('error', (err) => console.log('Postgres postgresClient Error', err))
+)
+// .on('error', (err) => console.log('Postgres postgresClient Error', err))
 
 export function VerifyDiscordRequest(clientKey: string) {
   return function (req: any, res: any, buf: any, encoding: any) {

@@ -21,6 +21,7 @@ import * as dotenv from 'dotenv'
 import discordOrdersTicker from './src/onblock/discordOrdersTicker'
 import marketRecentAxiesTicker from './src/onblock/marketRecentAxiesTicker'
 import updateAxiesFloorPrice from './src/onblock/updateAxiesFloorPrice'
+import marketRecentSalesTicker from './src/onblock/marketRecentSalesTicker'
 
 dotenv.config()
 
@@ -327,7 +328,9 @@ app.listen(PORT, () => {
         .catch((error) => console.log(error))
         .finally(() => console.log('\x1b[36m%s\x1b[0m', `updateAxiesFloorPrice finished after ${Date.now() - sTime}ms`))
 
-      // TODO: save recent sales to postgres
+      void marketRecentSalesTicker(blockNumber)
+        .catch((error) => console.log(error))
+        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentSalesTicker finished after ${Date.now() - sTime}ms`))
     }
   })
 })
