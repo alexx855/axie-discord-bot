@@ -734,6 +734,34 @@ task('account', 'Get info of the deployer account', async (taskArgs, hre) => {
   }
 })
 
+task('send', 'send ron to account', async (taskArgs, hre) => {
+  try {
+    const accounts = await hre.ethers.getSigners()
+    const signer = accounts[0]
+    const addressFrom = signer.address.toLowerCase()
+    console.log('AddressFrom:', addressFrom)
+
+    // get RON balance
+    const balance = await hre.ethers.provider.getBalance(addressFrom)
+    const balanceInEther = hre.ethers.utils.formatEther(balance)
+    console.log('RON:', balanceInEther)
+
+    const addressTo = '0x0c4773cc8abd313f83686db0ed6c947a7fef01c6'
+    const amount = '0.1'
+
+    // send RON to address
+    console.log('Sending RON to:', addressTo)
+    const tx = await signer.sendTransaction({
+      to: addressTo,
+      value: hre.ethers.utils.parseEther(amount)
+    })
+
+    console.log('Tx:', tx.hash)
+  } catch (error) {
+    console.error(error)
+  }
+})
+
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
 const config: HardhatUserConfig = {
