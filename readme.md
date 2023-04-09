@@ -1,48 +1,39 @@
-# Discord bot that automatically buy Axies from the marketplace based on the given criteria.
-## It can also be used to sell (list/unlist) Axies on the marketplace through the hardhat tasks.
+# Axie Infinity Discord Bot
+
+This bot automatically buy Axies from the marketplace based on the given criteria, it uses your private key to sign the transaction, so you will need to run it on your own machine or a server that you control, never share your private key with anyone.
+
+## This bot is meant to be self hosted
+
+You can use it as a reference to build your own bot
+
 |/axie|/add order|/get and remove orders|
 |-|-|-|
 |[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png)|[![name](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png) |
 
 ### Setup
-Configure your custom env keys and tokens
-https://discord.com/developers/docs/intro
-https://hardhat.org/docs
+
+Create and fill your custom .env with your discord client id, discord bot token, and your ronin account private key
+
+Fetching credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
+
 ```bash
 cp .env.example .env
+code .env
 ```
 
-### Start node bot and redis from docker compose
-(Optional) if you want to use the devcontainer https://code.visualstudio.com/docs/devcontainers/containers
+
+To start the bot, you will need to expose the port 3000 to the internet and configure the discord bot to use that url for the interactions <https://discord.com/developers/docs/intro>
+You can use traefik as a proxy to expose your local machine to the internet, i have an example of a docker compose file that doest that here: <https://github.com/alexx855/traefik-proxy-home>
+
 ```bash
 docker compose up
 ```
 
-### Hardhat tasks
-- *account* - list account balances
-- *generate-access-token* - generate marketplace access token
-- *listall* - list all axies on the account, automatically calculate the price based on similar listings and axie rarity
-- *list* - list an axie on the marketplace
-- *unlist* - unlist an axie on the marketplace
-- *buy* - buy an axie on the marketplace from an order
+### Commands available in discord
 
-```bash
-npx hardhat accounts
-npx hardhat generate-access-token
-npx hardhat listall
-npx hardhat list --axie $AXIE_ID --base-price 0.1 --ended-price 0.2 --duration 1 --access-token $ACCESS_TOKEN
-npx hardhat unlist --axie $AXIE_ID 
-npx hardhat buy --order JSON.stringify(IMarketBuyOrder)
-```
+An order is a set of filters that will be used to buy axies from the marketplace as soon as they are listed
 
-### Discord bot commands:
-- */axie $AXIE_ID* - Get axie info
-- */add_order* - Create an order that automatically buy axie's based on the given price and the marketplace url filters 
-- */get_orders* - Get open orders, this how you get the order ID
+- */axie $AXIE_ID* - Get axie info by ID
+- */add_order* - Create a order that will automatically trigger based on the given price and the marketplace url filters
+- */get_orders* - Get open orders
 - */remove_order $ORDER_ID* - Remove order by ID
-- **TODO: /list - List axie's on the marketplace**
-- **TODO: /unlist - batch rename**
-- **TODO: /unlist - batch unlist**
-
-### Discord bot notifications:
-The opportunity to buy an axie is notified in the discord channel specified in the .env file.
