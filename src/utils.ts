@@ -24,7 +24,7 @@ export const createPgClient = () => new Client(
     host: process.env.POSTGRES_HOST ?? 'localhost',
     database: process.env.POSTGRES_DB ?? 'axiebot',
     password: process.env.POSTGRES_PASSWORD ?? 'password',
-    port: 5432
+    port: +process.env.POSTGRES_PORT! ?? 5432
   }
 )
 // .on('error', (err) => console.log('Postgres postgresClient Error', err))
@@ -52,15 +52,14 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   const res = await fetch(url, {
     headers: {
       Authorization: `Bot ${process.env.DISCORD_TOKEN as string}`,
-      'Content-Type': 'application/json; charset=UTF-8'
-      // 'User-Agent': 'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.0.0)'
+      'Content-Type': 'application/json; charset=UTF-8',
+      'User-Agent': 'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.1.0)'
     },
     ...options
   })
   // throw API errors
   if (!res.ok) {
     const data = await res.json()
-    // console.log(res.status)
     throw new Error(JSON.stringify(data))
   }
   // return original response
