@@ -769,7 +769,7 @@ const config: HardhatUserConfig = {
   networks: {
     ronin: {
       chainId: 2020,
-      url: process.env.RONIN_NETWORK_URL ?? 'https://api.roninchain.com/rpc',
+      url: process.env.RONIN_NETWORK_RPC_URL ?? 'https://api.roninchain.com/rpc',
       accounts: [process.env.PRIVATE_KEY as string]
     }
   }

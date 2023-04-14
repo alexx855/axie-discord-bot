@@ -29,6 +29,7 @@ export const CONTRACT_MARKETPLACE_V2_ADDRESS = '0xfff9ce5f71ca6178d3beecedb61e7e
 export const CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH = 'abis/market_v2.json'
 
 export const GRAPHQL_URL = 'https://graphql-gateway.axieinfinity.com/graphql'
+export const SKYMAVIS_AXIE_API_ENDPOINT = 'https://api.skymavis.com/axie/'
 
 export const DEFAULT_GAS_LIMIT = 481338 // 481338 default gas limit for track usage
 

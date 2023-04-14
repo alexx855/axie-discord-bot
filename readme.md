@@ -12,12 +12,25 @@ You can use it as a reference to build your own bot
 
 ### Setup
 
-Create and fill your custom .env with your discord client id, discord bot token, and your ronin account private key
+Create and fill your custom .env with your discord client id and discord bot token
 
 Fetching credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
 
 ```bash
 cp .env.example .env
+code .env
+```
+
+Pull the submodules
+
+```bash
+git submodule update --init --recursive
+```
+
+Add your ronin account private key to the .env file inside the /axie-ronin-hardhat-taks/ folder
+
+```bash
+cp ./axie-ronin-hardhat-taks/.env.example ./axie-ronin-hardhat-taks /.env
 code .env
 ```
 
@@ -28,6 +41,7 @@ You can use traefik as a proxy to expose your local machine to the internet, i h
 ```bash
 docker compose up
 ```
+
 
 ### Commands available in discord
 

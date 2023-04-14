@@ -14,25 +14,22 @@ import { ethers } from 'ethers'
 import { getAxieEmbed } from './src/axies'
 import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
-import { getMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
+import { getRedisMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
 import { config } from 'hardhat'
-import * as dotenv from 'dotenv'
 import discordOrdersTicker from './src/onblock/discordOrdersTicker'
 import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
-import updateAxiesFloorPrice from './src/onblock/updateAxiesFloorPrice'
-import marketRecentSalesTicker from './src/onblock/marketRecentSalesTicker'
-
+import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Create an express app
 const app = express()
-// Get port, or default to 3000
-const PORT = process.env.PORT ?? 3000
+// Get port, or default to 3001
+const PORT = process.env.EXPRESS_PORT ?? 3001
 // Parse request body and verifies incoming requests using discord-interactions package
-console.log('Verifying requests', process.env.PUBLIC_KEY ?? '')
+console.log('Verifying requests', process.env.DISCORD_PUBLIC_KEY ?? '<Discord public key>')
 app.use(
-  express.json({ verify: VerifyDiscordRequest(process.env.PUBLIC_KEY ?? '') })
+  express.json({ verify: VerifyDiscordRequest(process.env.DISCORD_PUBLIC_KEY ?? '<Discord public key>') })
 )
 
 /**
@@ -77,8 +74,10 @@ app.post('/interactions', async (req, res) => {
       }
     }
 
-    // Check for admin, if not admin, return
-    const userId: string = req.body?.member?.user?.id
+    // Check for allowed user only, we dont want to anyone else to use this commands
+    const userId: string = req.body.member.user.id
+    console.log('userId')
+    console.log(userId)
     const adminId: string = process.env.DISCORD_USER_ID ?? ''
     if (userId !== adminId) {
       return res.send({
@@ -91,7 +90,7 @@ app.post('/interactions', async (req, res) => {
 
     if (name === 'get_orders') {
       // Get orders from redis
-      const orders = await getMarketOrders()
+      const orders = await getRedisMarketOrders()
       let content = ''
 
       if (orders.length > 0) {
@@ -124,7 +123,7 @@ app.post('/interactions', async (req, res) => {
       // Default response
       let content = `Order ID: **${orderID}** not found`
       // Check if order exists, get current orders list
-      const orders = await getMarketOrders()
+      const orders = await getRedisMarketOrders()
       // Check if order exists
       const orderIndex = orders.findIndex(
         (order) => order.id.toString() === orderID
@@ -219,19 +218,19 @@ app.post('/interactions', async (req, res) => {
         ''
       ).split('?')[1]?.split('&')
 
-      // todo: check if the props are valid
+      // TODO: check if the props are valid
       // group the same props by key, keep values
       const marketPropsGrouped: MarketPropsInterface =
-          marketPropsArray.reduce((acc: any, curr) => {
-            const [key, value] = curr.split('=')
-            // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-            if (acc[key] && !acc[key].includes(value)) {
-              acc[key].push(value)
-            } else {
-              acc[key] = [value]
-            }
-            return acc
-          }, {})
+        marketPropsArray.reduce((acc: any, curr) => {
+          const [key, value] = curr.split('=')
+          // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+          if (acc[key] && !acc[key].includes(value)) {
+            acc[key].push(value)
+          } else {
+            acc[key] = [value]
+          }
+          return acc
+        }, {})
 
       // get and parse trigger price
       const priceFromModal = ethers.utils.parseUnits(data.components[1].components[0].value, 'ether')
@@ -282,7 +281,7 @@ app.post('/interactions', async (req, res) => {
 
 app.listen(PORT, () => {
   // console.log('Listening on port', PORT)
-  if (process.env.APP_ID === undefined || process.env.GUILD_ID === undefined) {
+  if (process.env.DISCORD_CLIENT_ID === undefined || process.env.DISCORD_GUILD_ID === undefined) {
     console.log('Missing env vars, exiting...')
     process.exit(1)
   }
@@ -293,8 +292,8 @@ app.listen(PORT, () => {
     process.exit(1)
   }
 
-  const appId = process.env.APP_ID
-  const guildId = process.env.GUILD_ID
+  const appId = process.env.DISCORD_CLIENT_ID
+  const guildId = process.env.DISCORD_GUILD_ID
 
   // Check if guild commands are installed (if not, install them)
   HasGuildCommands(appId, guildId, [
@@ -307,36 +306,32 @@ app.listen(PORT, () => {
   // subscribe to new blocks from the provider
   const provider = new ethers.providers.JsonRpcProvider(url, chainId)
   let time = Date.now()
-  provider.on('block', (blockNumber: number) => {
-    // check if we got two block almost at the same time
+  provider.on('block', async (blockNumber: number) => {
     const diff = Date.now() - time
     time = Date.now()
-    if (diff > 1000) {
-      console.log('\x1b[33m%s\x1b[0m', `new block ${blockNumber} received after ${diff}ms`)
-      // track time
-      const sTime = Date.now()
-
-      void marketRecentListingsTicker(blockNumber)
-        .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
-
-      void discordOrdersTicker(blockNumber)
-        .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `discordOrdersTicker finished after ${Date.now() - sTime}ms`))
-
-      void updateAxiesFloorPrice(blockNumber)
-        .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `updateAxiesFloorPrice finished after ${Date.now() - sTime}ms`))
-
-      void marketRecentSalesTicker(blockNumber)
-        .catch((error) => console.log(error))
-        .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentSalesTicker finished after ${Date.now() - sTime}ms`))
+    // Not sure why some blocks came at the same time, but we don't want to process them together
+    if (diff < 100) {
+      return
     }
+
+    console.log('\x1b[33m%s\x1b[0m', `new block ${blockNumber} received after ${diff}ms`)
+    // track time
+    const sTime = Date.now()
+
+    // get recent listings, scrape for floor price axies
+    await marketRecentListingsTicker()
+      .catch((error) => console.log(error))
+      .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
+
+    // check for the discord created orders by criteria
+    await discordOrdersTicker()
+      .catch((error) => console.log(error))
+      .finally(() => console.log('\x1b[36m%s\x1b[0m', `discordOrdersTicker finished after ${Date.now() - sTime}ms`))
   })
 })
 
 app.get('/', (req, res) => {
-  res.send('hello discord bot!')
+  res.send('Hello from alexx855.eth axie discord bot!')
 })
 
 app.get('/terms-of-service', (req, res) => {

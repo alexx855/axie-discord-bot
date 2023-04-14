@@ -1,7 +1,12 @@
 import { IMarketOrder, IAsset, ICriteria } from './interfaces'
 import { fetchAxieQuery, redisClient } from './utils'
 
-export async function fetchMarketRecentlistings() {
+export async function fetchMarketRecentlistings(variables = {
+  from: 0,
+  size: 1,
+  sort: 'Latest',
+  auctionType: 'Sale'
+}) {
   const query = `query GetAxieLatest(
     $auctionType: AuctionType
     $criteria: AxieSearchCriteria
@@ -129,13 +134,6 @@ export async function fetchMarketRecentlistings() {
     __typename
   }
   `
-  // todo: refactor as default params so i can change the size and from
-  const variables = {
-    from: 0,
-    size: 5,
-    sort: 'Latest',
-    auctionType: 'Sale'
-  }
 
   interface IAxieLatestResponse {
     data?: {
@@ -330,30 +328,31 @@ export async function fetchMarketByCriteria(
   return res.data.axies
 }
 
-export async function getMarketOrders() {
-  const ordersArray: IMarketOrder[] = []
+export async function getLastestAxieListingId() {
   await redisClient.connect()
-
-  const orders = await redisClient.get('orders')
-  if (orders !== null) {
-    ordersArray.push(...JSON.parse(orders))
-  }
-
-  await redisClient.disconnect()
-  return ordersArray
-}
-
-export async function getMostRecentlistingsAxieId() {
-  await redisClient.connect()
-  const lastId = await redisClient.get('MostRecentlistingsAxieId')
+  const lastId = await redisClient.get('LastestAxieListingId')
   await redisClient.disconnect()
   return lastId ?? ''
 }
 
-export async function setMostRecentlistingsAxieId(axieId: string) {
+export async function setMostRecentlistingAxieId(axieId: string) {
   await redisClient.connect()
-  await redisClient.set('MostRecentlistingsAxieId', axieId)
+  await redisClient.set('LastestAxieListingId', axieId)
   await redisClient.disconnect()
+}
+
+
+export async function getRedisMarketOrders() {
+  const ordersArray: IMarketOrder[] = []
+  await redisClient.connect()
+
+  const orders = await redisClient.get('orders')
+  await redisClient.disconnect()
+  if (orders !== null) {
+    ordersArray.push(...JSON.parse(orders))
+  }
+
+  return ordersArray
 }
 
 export async function setMarketOrders(orders: IMarketOrder[]) {
@@ -377,12 +376,12 @@ export async function updateMarketOrder(order: IMarketOrder) {
 }
 
 export async function addMarketOrder(newOrder: IMarketOrder) {
-  const orders = await getMarketOrders()
+  const orders = await getRedisMarketOrders()
   await setMarketOrders([...orders, newOrder])
 }
 
 export async function removeMarketOrder(orderId: string) {
-  const orders = await getMarketOrders()
+  const orders = await getRedisMarketOrders()
   // Check if order exists
   const orderIndex = orders.findIndex(order => order.id === orderId)
   if (orderIndex !== -1) {
@@ -391,217 +390,4 @@ export async function removeMarketOrder(orderId: string) {
     // Set the new orders
     await setMarketOrders(orders)
   }
-}
-
-export async function getRecentlyAxiesSold(from: number = 0, size: number = 20) {
-  const query = 'query GetRecentlyAxiesSold($from: Int, $size: Int) {\n\tsettledAuctions {\n\t\taxies(from: $from, size: $size) {\n\t\t\ttotal\n\t\t\tresults {\n\t\t\t\t...AxieBrief\n\t\t\t\ttransferHistory {\n\t\t\t\t\t...TransferHistoryInSettledAuction\n\t\t\t\t\t__typename\n\t\t\t\t}\n\t\t\t\t__typename\n\t\t\t}\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\n\nfragment AxieBrief on Axie {\n\tid\n\tname\n\tstage\n\tclass\n\tbreedCount\n\timage\n\ttitle\n\tgenes\n\tnewGenes\n\tbattleInfo {\n\t\tbanned\n\t\t__typename\n\t}\n\torder {\n\t\tid\n\t\tcurrentPrice\n\t\tcurrentPriceUsd\n\t\t__typename\n\t}\n\tparts {\n\t\tid\n\t\tname\n\t\tclass\n\t\ttype\n\t\tspecialGenes\n\t\t__typename\n\t}\n\t__typename\n}\n\nfragment TransferHistoryInSettledAuction on TransferRecords {\n\ttotal\n\tresults {\n\t\t...TransferRecordInSettledAuction\n\t\t__typename\n\t}\n\t__typename\n}\n\nfragment TransferRecordInSettledAuction on TransferRecord {\n\tfrom\n\tto\n\ttxHash\n\ttimestamp\n\twithPrice\n\twithPriceUsd\n\tfromProfile {\n\t\tname\n\t\t__typename\n\t}\n\ttoProfile {\n\t\tname\n\t\t__typename\n\t}\n\t__typename\n}\n'
-  const variables = { from, size, sort: 'Latest', auctionType: 'Sale' }
-  interface SettledAuctions {
-    axies: Axies
-    __typename: string
-  }
-
-  interface Axies {
-    total: number
-    results: Result[]
-    __typename: string
-  }
-
-  interface Result {
-    id: string
-    name: string
-    stage: number
-    class: string
-    breedCount: number
-    image: string
-    title: string
-    genes: string
-    newGenes: string
-    battleInfo: BattleInfo
-    order: any
-    parts: Part[]
-    __typename: string
-    transferHistory: TransferHistory
-  }
-
-  interface BattleInfo {
-    banned: boolean
-    __typename: string
-  }
-
-  interface Part {
-    id: string
-    name: string
-    class: string
-    type: string
-    specialGenes: any
-    __typename: string
-  }
-
-  interface TransferHistory {
-    total: number
-    results: Result2[]
-    __typename: string
-  }
-
-  interface Result2 {
-    from: string
-    to: string
-    txHash: string
-    timestamp: number
-    withPrice: string
-    withPriceUsd: string
-    fromProfile: FromProfile
-    toProfile: ToProfile
-    __typename: string
-  }
-
-  interface FromProfile {
-    name: string
-    __typename: string
-  }
-
-  interface ToProfile {
-    name: string
-    __typename: string
-  }
-
-  interface IGetRecentlyAxiesSold {
-    data: {
-      settledAuctions: SettledAuctions
-    }
-  }
-  const res = await fetchAxieQuery<IGetRecentlyAxiesSold>(query, variables)
-  if (res === null || res.data?.settledAuctions?.axies === undefined) {
-    return false
-  }
-  return res.data.settledAuctions.axies
-}
-
-export async function getRecentlyErc1155Listed(asset: string, from: number = 0, size: number = 20) {
-  const query = 'query GetRecentlyErc1155Listed(\n\t$from: Int\n\t$size: Int\n\t$tokenType: Erc1155Type!\n) {\n\terc1155Token(tokenType: $tokenType) {\n\t\tid: tokenId\n\t\ttokenId\n\t\ttokenType\n\t\ttotal\n\t\torders(from: $from, size: $size, sort: Latest) {\n\t\t\t...OrdersInfo\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\nfragment OrdersInfo on Orders {\n\ttotal\n\tquantity\n\tdata {\n\t\t...OrderInfo\n\t\t__typename\n\t}\n\t__typename\n}\nfragment OrderInfo on Order {\n\tid\n\tmaker\n\tkind\n\tassets {\n\t\t...AssetInfo\n\t\t__typename\n\t}\n\texpiredAt\n\tpaymentToken\n\tstartedAt\n\tbasePrice\n\tendedAt\n\tendedPrice\n\texpectedState\n\tnonce\n\tmarketFeePercentage\n\tsignature\n\thash\n\tduration\n\ttimeLeft\n\tcurrentPrice\n\tsuggestedPrice\n\tcurrentPriceUsd\n\t__typename\n}\nfragment AssetInfo on Asset {\n\terc\n\taddress\n\tid\n\tquantity\n\torderId\n\t__typename\n}\n'
-  const variables = { from, size, tokenType: asset }
-
-  interface IErc1155Token {
-    id: any
-    tokenId: any
-    tokenType: string
-    total: number
-    orders: IOrders
-    __typename: string
-  }
-
-  interface IAsset {
-    erc: string
-    address: string
-    id: string
-    quantity: string
-    orderId: number
-    __typename: string
-  }
-
-  interface IOrders {
-    total: number
-    quantity: number
-    data: Array<{
-      id: number
-      maker: string
-      kind: string
-      assets: IAsset[]
-      expiredAt: number
-      paymentToken: string
-      startedAt: number
-      basePrice: string
-      endedAt: number
-      endedPrice: string
-      expectedState: string
-      nonce: number
-      marketFeePercentage: number
-      signature: string
-      hash: string
-      duration: number
-      timeLeft: number
-      currentPrice: string
-      suggestedPrice: string
-      currentPriceUsd: string
-      __typename: string
-    }>
-    __typename: string
-  }
-
-  interface IGetRecentlyErc1155Listed {
-    data: {
-      erc1155Token: IErc1155Token
-    }
-  }
-  const res = await fetchAxieQuery<IGetRecentlyErc1155Listed>(query, variables)
-  if (res === null || res.data?.erc1155Token === undefined) {
-    return false
-  }
-  return res.data.erc1155Token
-}
-
-export async function getRecentlyErc1155Sold(asset: string, from: number = 0, size: number = 20) {
-  const query = 'query GetRecentlyErc1155Sold($from: Int, $size: Int, $tokenType: Erc1155Type!) {\n\tsettledAuctions {\n\t\terc1155Tokens(from: $from, size: $size, tokenType: $tokenType) {\n\t\t\ttotal\n\t\t\tresults {\n\t\t\t\ttotal\n\t\t\t\tid: tokenId\n\t\t\t\ttokenId\n\t\t\t\ttokenAddress\n\t\t\t\ttokenType\n\t\t\t\ttransferHistory {\n\t\t\t\t\t...TransferHistoryInSettledAuction\n\t\t\t\t\t__typename\n\t\t\t\t}\n\t\t\t\t__typename\n\t\t\t}\n\t\t\t__typename\n\t\t}\n\t\t__typename\n\t}\n}\nfragment TransferHistoryInSettledAuction on TransferRecords {\n\ttotal\n\tresults {\n\t\t...TransferRecordInSettledAuction\n\t\t__typename\n\t}\n\t__typename\n}\nfragment TransferRecordInSettledAuction on TransferRecord {\n\tfrom\n\tto\n\ttxHash\n\ttimestamp\n\twithPrice\n\twithPriceUsd\n\tfromProfile {\n\t\tname\n\t\t__typename\n\t}\n\ttoProfile {\n\t\tname\n\t\t__typename\n\t}\n\t__typename\n}\n'
-  const variables = { from, size, tokenType: asset }
-
-  interface SettledAuctions {
-    erc1155Tokens: Erc1155Tokens
-    __typename: string
-  }
-
-  interface Erc1155Tokens {
-    total: number
-    results: Result[]
-    __typename: string
-  }
-
-  interface Result {
-    total: number
-    id: string
-    tokenId: string
-    tokenAddress: string
-    tokenType: string
-    transferHistory: TransferHistory
-    __typename: string
-  }
-
-  interface TransferHistory {
-    total: number
-    results: Result2[]
-    __typename: string
-  }
-
-  interface Result2 {
-    from: string
-    to: string
-    txHash: string
-    timestamp: number
-    withPrice: string
-    withPriceUsd: string
-    fromProfile: FromProfile
-    toProfile: ToProfile
-    __typename: string
-  }
-
-  interface FromProfile {
-    name: string
-    __typename: string
-  }
-
-  interface ToProfile {
-    name: string
-    __typename: string
-  }
-
-  interface IGetRecentlyErc1155Sold {
-    data: {
-      settledAuctions: SettledAuctions
-    }
-  }
-  const res = await fetchAxieQuery<IGetRecentlyErc1155Sold>(query, variables)
-  if (res === null || res.data?.settledAuctions === undefined) {
-    return false
-  }
-  return res.data.settledAuctions.erc1155Tokens
 }

@@ -146,14 +146,15 @@ fragment AssetInfo on Asset {
 export async function buyAxie(waitFortx: () => Promise<string>, order: IMarketBuyOrder) {
   // call the hardhart task buy with the order as argument
   const tx: string = await waitFortx()
-  console.log('\x1b[33m%s\x1b[0m', 'The bot will try to buy something...')
-  console.log(`--txhash ${tx}`)
-  const txLink = `https://explorer.roninchain.com/tx/${tx}`
+  console.log('\x1b[33m%s\x1b[0m', 'The bot will try to execute the tx order now')
+  // console.log(`--txhash ${tx}`)
+
+  // todo: validate if the tx failed, update the message with the error or the success
 
   // send a message to the discord channel if we've defined one
   if (process.env.BOT_CHANNEL_ID !== undefined) {
     const embed = await getAxieEmbed(order.axieId)
-
+    const exploreTxLink = `https://explorer.roninchain.com/tx/${tx}`
     void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
       method: 'POST',
       body:
@@ -168,7 +169,7 @@ export async function buyAxie(waitFortx: () => Promise<string>, order: IMarketBu
                 type: 2,
                 label: 'Open Tx on Ronin explorer',
                 style: 5,
-                url: txLink
+                url: exploreTxLink
               }
             ]
           }
@@ -176,13 +177,10 @@ export async function buyAxie(waitFortx: () => Promise<string>, order: IMarketBu
         embeds: [embed]
       }
     })
-
-    // todo: validate if the tx failed, update the message with the error or the success
   }
 }
 
 export async function getAxieEstimatedPrice(axieData: IAxieData['data']['axie'], minPrice: string) {
-  // todo: get axie cards stats from the api
   const { parts } = axieData
 
   // search the market for a floor price based on parts
@@ -207,6 +205,7 @@ export async function getAxieEstimatedPrice(axieData: IAxieData['data']['axie'],
   }
   // const marketMinPrice = String(await getMinPriceAxie(axieData.id))
   // console.log('marketMinPrice', marketMinPrice)
+
   let floorPrice = MIN_PRICE.toString()
   if (!ethers.BigNumber.isBigNumber(ethers.BigNumber.from(floorPrice))) {
     throw new Error('Invalid floor price')

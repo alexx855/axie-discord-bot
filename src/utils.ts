@@ -1,33 +1,18 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { verifyKey } from 'discord-interactions'
 import { ethers } from 'ethers'
 import { createClient } from 'redis'
 import { GRAPHQL_URL } from '../constants'
-import { Client } from 'pg'
 import * as dotenv from 'dotenv'
 dotenv.config()
 
 // redis client
 export const redisClient = createClient({
   socket: {
-    host: process.env.REDIS_HOST ?? 'localhost',
+    host: process.env.REDIS_HOST ?? 'host.docker.internal',
     port: 6379
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
-})
-// .on('error', (err) => console.log('Redis redisClient Error', err))
-
-// postgres client
-export const createPgClient = () => new Client(
-  {
-    user: process.env.POSTGRES_USER ?? 'postgres',
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    database: process.env.POSTGRES_DB ?? 'axiebot',
-    password: process.env.POSTGRES_PASSWORD ?? 'password',
-    port: +process.env.POSTGRES_PORT! ?? 5432
-  }
-)
-// .on('error', (err) => console.log('Postgres postgresClient Error', err))
+}).on('error', (err) => console.log('Redis Error', err))
 
 export function VerifyDiscordRequest(clientKey: string) {
   return function (req: any, res: any, buf: any, encoding: any) {
@@ -46,7 +31,6 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
   // Stringify payloads
-  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (options?.body) options.body = JSON.stringify(options.body)
   // Use node-fetch to make requests
   const res = await fetch(url, {
@@ -57,10 +41,12 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
     },
     ...options
   })
-  // throw API errors
+
+  // handle API errors
   if (!res.ok) {
     const data = await res.json()
-    throw new Error(JSON.stringify(data))
+    // throw new Error(JSON.stringify(data))
+    console.error(data)
   }
   // return original response
   return res

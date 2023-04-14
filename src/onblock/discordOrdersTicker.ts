@@ -2,18 +2,14 @@ import { ethers } from 'ethers'
 import { run } from 'hardhat'
 import { buyAxie } from '../axies'
 import { ICriteria, IMarketBuyOrder } from '../interfaces'
-import { getMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
+import { getRedisMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
 
-// the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while or never again at that price
-const MAX_PRICE = ethers.utils.parseUnits('0.1', 'ether')
-
-const discordOrdersTicker = async (blockNumber: number) => {
+const discordOrdersTicker = async () => {
   // get buy created from discord
-  const marketOrders = await getMarketOrders()
+  const marketOrders = await getRedisMarketOrders()
   if (marketOrders.length > 0) {
     for (let i = 0; i < marketOrders.length; i++) {
       const marketOrder = marketOrders[i]
-      // console.log(`checking order ${marketOrder.id} for user ${marketOrder.userId}`)
 
       // validate the marketProps, not the same as the graphql criteria sometimes
       const criteria: ICriteria = {}
@@ -62,13 +58,13 @@ const discordOrdersTicker = async (blockNumber: number) => {
       const floorPrice = ethers.utils.formatEther(result.order.currentPrice)
       if (floorPrice !== marketOrder.floorPrice) {
         marketOrder.floorPrice = floorPrice
-        void updateMarketOrder(marketOrder)
+        await updateMarketOrder(marketOrder)
       }
 
       const currentPrice = ethers.BigNumber.from(result.order.currentPrice)
 
       // check if the current price is lower than the trigger price, if so, buy the axie
-      if (triggerPrice.gte(currentPrice) && currentPrice.lte(MAX_PRICE)) {
+      if (triggerPrice.gte(currentPrice)) {
         // remove the market order from the orders array, to prevent it from being executed again
         await removeMarketOrder(marketOrder.id)
 
@@ -90,7 +86,7 @@ const discordOrdersTicker = async (blockNumber: number) => {
 
         // buy the axie
         await buyAxie(async () => await run('buy', { order: JSON.stringify(order) }), order).catch((err) => {
-          console.log('\x1b[91m%s\x1b[0m', `error buying axie ${order.axieId} `)
+          console.log('\x1b[91m%s\x1b[0m', `Error buying axie ${order.axieId} `)
           console.log(err)
         })
       }

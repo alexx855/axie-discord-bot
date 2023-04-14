@@ -2,15 +2,14 @@ import { ethers } from 'ethers'
 import { run } from 'hardhat'
 import { buyAxie, getAxieTransferHistory, getClassColor } from '../axies'
 import { IScalpedAxie, ICriteria, IMarketBuyOrder } from '../interfaces'
-import { fetchMarketRecentlistings, getMostRecentlistingsAxieId, setMostRecentlistingsAxieId, fetchMarketByCriteria } from '../market'
+import { fetchMarketRecentlistings, fetchMarketByCriteria, getLastestAxieListingId, setMostRecentlistingAxieId } from '../market'
 import { DiscordRequest, getFloorPrice } from '../utils'
+import discordOrdersTicker from './discordOrdersTicker'
 
 const AUTO_BUY_FLOOR = false // set to true to auto buy axies at floor price
+const MIN_PROFIT = ethers.utils.parseUnits('0.001', 'ether') // the minimum profit , in ETH, to consider buy an axie
 const AUTO_BUY_MAX_PRICE = ethers.utils.parseUnits('0.002', 'ether') // the max price to auto buy a floor axie, in ETH, if all the conditions are met
-const MAX_PRICE = ethers.utils.parseUnits('0.02', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies that wont sell for a while
-// TODO: calculate the min profit based on the gas price and the gas used to buy the axie
-// const MIN_PROFIT = ethers.utils.parseUnits('0.001', 'ether') // the minimum profit , in ETH
-// todo: REVIEW THIS, something is wrong, its always 100% profit or its rounding?
+const MAX_PRICE = ethers.utils.parseUnits('10.02', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies
 const MIN_PROFIT_EST_PERCENTAGE = 40 // the minimum difference in % on the floor price to consider buy an axie
 const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
 const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
@@ -20,32 +19,32 @@ const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consi
 const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
 
 // this script will check for the latest axies listings at the marketplace and look for axies that meet the criteria
-const marketRecentListingsTicker = async (blockNumber: number) => {
+const marketRecentListingsTicker = async () => {
   try {
     // get latest market listings from api
     const listings = await fetchMarketRecentlistings()
     if (listings === false) {
       // console.log('\x1b[91m%s\x1b[0m', 'error fetching latest listings')
-      throw new Error('error fetching API from marketRecentListingsTicker')
+      return
     }
 
-    // get last axie id from redis
-    const mostRecentSavedAxieId = await getMostRecentlistingsAxieId()
+    // get lastest axie id from redis
+    const lastestAxieListingId = await getLastestAxieListingId()
 
-    // check if its still the most recent
-    if (mostRecentSavedAxieId === listings[0].id) {
+    // check if its still the most recent, if so, return
+    if (lastestAxieListingId === listings[0].id) {
       return
     }
 
     // save the most recent listings id to redis
-    void setMostRecentlistingsAxieId(listings[0].id)
+    await setMostRecentlistingAxieId(listings[0].id)
 
-    // interate over the listings and check if there is an scalper
+    // interate over the listings and check if there is any axie that meets the criteria
     const items: IScalpedAxie[] = []
     for (let i = 0; i < listings.length; i++) {
       const listing = listings[i]
-      if (listing.id === mostRecentSavedAxieId) {
-        break
+      if (listing.id === lastestAxieListingId) {
+        continue
       }
 
       let lastSoldDate,
@@ -55,34 +54,22 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
       const transferHistoryData = await getAxieTransferHistory(listing.id)
       if (transferHistoryData !== null && transferHistoryData.transferHistory.results.length > 0) {
         const transferHistory = transferHistoryData.transferHistory
-        // const ethereumTransferHistory = res.ethereumTransferHistory
-        // get latest sold price and date from transferHistory.results[0].timestamp
         const sDate = new Date(transferHistory.results[0].timestamp * 1000)
         lastSoldDate = sDate.toLocaleString()
         const sPrice = ethers.BigNumber.from(transferHistory.results[0].withPrice)
         lastSoldPrice = sPrice.toString()
-
-        //  prevent buying already flipped axies
-        const now = new Date()
-        const diff = now.getTime() - sDate.getTime()
-        const diffHours = Math.round(diff / 1000 / 60 / 60)
-        // check if the axie was sold less than 48 hours ago
-        if (diffHours < 48 && sPrice.lt(listing.order.currentPrice)) {
-          // console.log(`skipping axie ${listing.id} already flipped`)
-          continue
-        }
       }
 
       // check if the axie is under the max price willing to pay
       const currentPrice = ethers.BigNumber.from(listing.order.currentPrice)
       if (currentPrice.gt(MAX_PRICE)) {
-        // console.log(`skiping ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is over Ξ${ethers.utils.formatEther(MAX_PRICE)}`)
+        console.log(`skiping ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is over Ξ${ethers.utils.formatEther(MAX_PRICE)}`)
         continue
       }
 
       // check if the axie has less than the max number of breeds
       if (listing.breedCount > MAX_BREEDS) {
-        // console.log(`skiping ${listing.id} has ${listing.breedCount} breeds and is over ${MAX_BREEDS}`)
+        console.log(`skiping ${listing.id} has ${listing.breedCount} breeds and is over ${MAX_BREEDS}`)
         continue
       }
 
@@ -95,14 +82,14 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
       }, 0)
 
       if (pureness < MIN_PURENESS) {
-        // console.log(`skiping ${listing.id} has ${pureness} pureness and is under ${MIN_PURENESS}`)
+        console.log(`skiping ${listing.id} has ${pureness} pureness and is under ${MIN_PURENESS}`)
         continue
       }
 
       // auto buy axies that are under floor price
       const floorPrice = await getFloorPrice()
       if (AUTO_BUY_FLOOR && floorPrice !== null && currentPrice.lt(floorPrice) && currentPrice.lt(AUTO_BUY_MAX_PRICE)) {
-        console.log('\x1b[33m%s\x1b[0m', `auto buying ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is under Ξ${ethers.utils.formatEther(floorPrice)}`)
+        console.log('\x1b[33m%s\x1b[0m', `Auto buying ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is under Ξ${ethers.utils.formatEther(floorPrice)}`)
 
         const axieId = listing.order.assets[0].id as string
         const order: IMarketBuyOrder = {
@@ -154,14 +141,14 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
       const totalOnSale = similarMarketListings.total - 1 // -1 to exclude the current listing
       // check if the axie has less than the max number on sale
       if (totalOnSale > MAX_SIMILAR || totalOnSale < MIN_SIMILAR) {
-        // console.log(`skiping ${listing.id} has ${totalOnSale} similar on sale and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
+        console.log(`skiping ${listing.id} has ${totalOnSale} similar on sale and is over ${MAX_SIMILAR} or under ${MIN_SIMILAR}`)
         continue
       }
 
       // check if the axie has less than the max number on existence
       const totalAxies = similarAxies.total
       if (totalAxies > MAX_EXISTENCE || totalAxies < MIN_EXISTENCE) {
-        // console.log(`skiping ${listing.id} has ${totalAxies} similar on existence and is over ${MAX_EXISTENCE} or under ${MIN_EXISTENCE}`)
+        console.log(`skiping ${listing.id} has ${totalAxies} similar on existence and is over ${MAX_EXISTENCE} or under ${MIN_EXISTENCE}`)
         continue
       }
 
@@ -175,10 +162,10 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
       const estProfit = similarFloorPrice.sub(currentPrice)
       console.log(`est profit Ξ${ethers.utils.formatEther(estProfit)}`)
 
-      // if (estProfit.lt(MIN_PROFIT)) {
-      //   // console.log(`skiping ${listing.id} profit Ξ${ethers.utils.formatEther(profit)} is under Ξ${ethers.utils.formatEther(MIN_PROFIT)}`)
-      //   continue
-      // }
+      if (estProfit.lt(MIN_PROFIT)) {
+        console.log(`skiping ${listing.id} profit Ξ${ethers.utils.formatEther(estProfit)} is under Ξ${ethers.utils.formatEther(MIN_PROFIT)}`)
+        continue
+      }
 
       // rarity based on the Axie's R1 genes
       const rarity = totalAxies === 1 ? 'Unique' : totalAxies < 100 ? 'Epic' : totalAxies < 1000 ? 'Rare' : 'Common'
@@ -186,7 +173,7 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
       // check if the minimum difference in % on the floor price to consider buy an axie
       const estimatedPercentage = estProfit.div(currentPrice).toNumber() * 100
       if (estimatedPercentage < MIN_PROFIT_EST_PERCENTAGE) {
-        // console.log(`skiping ${listing.id} estimated percentage ${estimatedPercentage}% is under ${MIN_PROFIT_EST_PERCENTAGE}%`)
+        console.log(`skiping ${listing.id} estimated percentage ${estimatedPercentage}% is under ${MIN_PROFIT_EST_PERCENTAGE}%`)
         continue
       }
 
@@ -209,14 +196,8 @@ const marketRecentListingsTicker = async (blockNumber: number) => {
     }
 
     // send discord message
-    if (items.length > 0) {
-      // console.log('\x1b[33m%s\x1b[0m', 'Recent listing met the criteria')
-      // console.log(items)
-
-      if (process.env.BOT_CHANNEL_ID === undefined) {
-        // console.log('BOT_CHANNEL_ID not set')
-        return
-      }
+    if (items.length > 0 && process.env.DISCORD_WEBHOOK_URL !== undefined) {
+      console.log('\x1b[33m%s\x1b[0m', 'Recent listing met the criteria')
 
       // create embed array with the scalped data
       const embeds = []
