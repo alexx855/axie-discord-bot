@@ -16,7 +16,6 @@ import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
 import { getRedisMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
-import { config } from 'hardhat'
 import discordOrdersTicker from './src/onblock/discordOrdersTicker'
 import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
 import * as dotenv from 'dotenv'
@@ -286,7 +285,8 @@ app.listen(PORT, () => {
     process.exit(1)
   }
 
-  const { chainId, url } = config.networks?.ronin as any
+  const chainId = Number(process.env.RONIN_NETWORK_CHAIN_ID)
+  const url = process.env.RONIN_NETWORK_RPC_URL
   if (chainId === undefined || url === undefined) {
     console.log('Missing network config, exiting...')
     process.exit(1)
@@ -303,10 +303,15 @@ app.listen(PORT, () => {
     ADD_ORDER_COMMAND
   ])
 
+  const network = {
+    name: 'ronin',
+    chainId
+  }
+
   // subscribe to new blocks from the provider
-  const provider = new ethers.providers.JsonRpcProvider(url, chainId)
+  const provider = new ethers.providers.JsonRpcProvider(url, network)
   let time = Date.now()
-  provider.on('block', async (blockNumber: number) => {
+  provider.on('block', (blockNumber: number) => {
     const diff = Date.now() - time
     time = Date.now()
     // Not sure why some blocks came at the same time, but we don't want to process them together
@@ -319,19 +324,15 @@ app.listen(PORT, () => {
     const sTime = Date.now()
 
     // get recent listings, scrape for floor price axies
-    await marketRecentListingsTicker()
+    marketRecentListingsTicker()
       .catch((error) => console.log(error))
       .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
 
     // check for the discord created orders by criteria
-    await discordOrdersTicker()
+    discordOrdersTicker()
       .catch((error) => console.log(error))
       .finally(() => console.log('\x1b[36m%s\x1b[0m', `discordOrdersTicker finished after ${Date.now() - sTime}ms`))
   })
-})
-
-app.get('/', (req, res) => {
-  res.send('Hello from alexx855.eth axie discord bot!')
 })
 
 app.get('/terms-of-service', (req, res) => {

@@ -30,7 +30,6 @@ fragment AxieDetail on Axie {
   stage
   title
   breedCount
-  level
   figure {
     atlas
     model
@@ -75,7 +74,6 @@ fragment AxieDetail on Axie {
 fragment AxieBattleInfo on AxieBattleInfo {
   banned
   banUntil
-  level
 }
 
 fragment AxiePart on AxiePart {
@@ -143,9 +141,10 @@ fragment AssetInfo on Asset {
   return false
 }
 
-export async function buyAxie(waitFortx: () => Promise<string>, order: IMarketBuyOrder) {
+export async function buyAxie(order: IMarketBuyOrder) {
   // call the hardhart task buy with the order as argument
-  const tx: string = await waitFortx()
+  // const tx: string = await waitFortx()
+  const tx: string = '0x123456789'
   console.log('\x1b[33m%s\x1b[0m', 'The bot will try to execute the tx order now')
   // console.log(`--txhash ${tx}`)
 

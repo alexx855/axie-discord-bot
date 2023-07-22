@@ -1,10 +1,8 @@
 import { ethers } from 'ethers'
-import { run } from 'hardhat'
 import { buyAxie, getAxieTransferHistory, getClassColor } from '../axies'
 import { IScalpedAxie, ICriteria, IMarketBuyOrder } from '../interfaces'
 import { fetchMarketRecentlistings, fetchMarketByCriteria, getLastestAxieListingId, setMostRecentlistingAxieId } from '../market'
 import { DiscordRequest, getFloorPrice } from '../utils'
-import discordOrdersTicker from './discordOrdersTicker'
 
 const AUTO_BUY_FLOOR = false // set to true to auto buy axies at floor price
 const MIN_PROFIT = ethers.utils.parseUnits('0.001', 'ether') // the minimum profit , in ETH, to consider buy an axie
@@ -92,6 +90,7 @@ const marketRecentListingsTicker = async () => {
         console.log('\x1b[33m%s\x1b[0m', `Auto buying ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is under Ξ${ethers.utils.formatEther(floorPrice)}`)
 
         const axieId = listing.order.assets[0].id as string
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const order: IMarketBuyOrder = {
           id: listing.order.id,
           axieId,
@@ -108,10 +107,7 @@ const marketRecentListingsTicker = async () => {
         }
 
         // buy the axie
-        await buyAxie(async () => await run('buy', { order: JSON.stringify(order) }), order).catch((err) => {
-          console.log('\x1b[91m%s\x1b[0m', `error buying axie ${order.axieId} `)
-          console.log(err)
-        })
+        void buyAxie(order)
 
         break
       }
@@ -233,7 +229,6 @@ const marketRecentListingsTicker = async () => {
           {
             name: 'Similar URL',
             value: `https://app.axieinfinity.com/marketplace/axies/?auctionTypes=Sale&parts=${item.parts.map(part => part.id).join('&parts=')}&classes=${item.class}`,
-            // &breedCount=0&breedCount=${item.breedCount}
             inline: false
           }
         ]
@@ -257,13 +252,17 @@ const marketRecentListingsTicker = async () => {
             fields
           })
       }
-      void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
-        method: 'POST',
-        body: {
-          content: 'Recent listing met the criteria',
-          embeds
-        }
-      })
+
+      // Notify discord channel
+      if (process.env.BOT_CHANNEL_ID !== undefined && embeds.length > 0) {
+        await DiscordRequest(process.env.DISCORD_WEBHOOK_URL, {
+          method: 'POST',
+          body: {
+            content: 'Recent listing met the criteria',
+            embeds
+          }
+        })
+      }
     }
   } catch (error) {
     console.log(error)

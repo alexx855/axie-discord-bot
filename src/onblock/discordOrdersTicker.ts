@@ -1,5 +1,4 @@
 import { ethers } from 'ethers'
-import { run } from 'hardhat'
 import { buyAxie } from '../axies'
 import { ICriteria, IMarketBuyOrder } from '../interfaces'
 import { getRedisMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
@@ -85,10 +84,7 @@ const discordOrdersTicker = async () => {
         }
 
         // buy the axie
-        await buyAxie(async () => await run('buy', { order: JSON.stringify(order) }), order).catch((err) => {
-          console.log('\x1b[91m%s\x1b[0m', `Error buying axie ${order.axieId} `)
-          console.log(err)
-        })
+        await buyAxie(order)
       }
     }
   }
