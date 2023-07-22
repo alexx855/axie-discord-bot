@@ -1,6 +1,6 @@
 # Axie Infinity Discord Bot
 
-This bot automatically buy Axies from the marketplace based on the given criteria, it uses your private key to sign the transaction, so you will need to run it on your own machine or a server that you control, never share your private key with anyone.
+This bot can buy Axies from the marketplace based on the given criteria, it uses your private key to sign the transaction, so you will need to run it on your own machine or a server that you control, never share your private key with anyone.
 
 ## This bot is meant to be self hosted
 
@@ -21,27 +21,12 @@ cp .env.example .env
 code .env
 ```
 
-Pull the submodules
-
-```bash
-git submodule update --init --recursive
-```
-
-Add your ronin account private key to the .env file inside the /axie-ronin-hardhat-taks/ folder
-
-```bash
-cp ./axie-ronin-hardhat-taks/.env.example ./axie-ronin-hardhat-taks /.env
-code .env
-```
-
-
 To start the bot, you will need to expose the port 3000 to the internet and configure the discord bot to use that url for the interactions <https://discord.com/developers/docs/intro>
 You can use traefik as a proxy to expose your local machine to the internet, i have an example of a docker compose file that doest that here: <https://github.com/alexx855/traefik-proxy-home>
 
 ```bash
 docker compose up
 ```
-
 
 ### Commands available in discord
 
