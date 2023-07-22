@@ -43,7 +43,6 @@ export async function fetchMarketRecentlistings(variables = {
     stage
     title
     breedCount
-    level
     newGenes
     battleInfo {
       banned
@@ -340,7 +339,6 @@ export async function setMostRecentlistingAxieId(axieId: string) {
   await redisClient.set('LastestAxieListingId', axieId)
   await redisClient.disconnect()
 }
-
 
 export async function getRedisMarketOrders() {
   const ordersArray: IMarketOrder[] = []
