@@ -31,6 +31,7 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
   // Stringify payloads
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (options?.body) options.body = JSON.stringify(options.body)
   // Use node-fetch to make requests
   const res = await fetch(url, {
@@ -56,23 +57,18 @@ export function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export async function fetchAxieQuery<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }): Promise<T | null> {
-  try {
-    const response = await fetch(GRAPHQL_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers
-      },
-      body: JSON.stringify({ query, variables })
-    })
+export async function fetchAxieQuery<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }) {
+  const response = await fetch(GRAPHQL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers
+    },
+    body: JSON.stringify({ query, variables })
+  })
 
-    const res: T = await response.json()
-    return res
-  } catch (error) {
-    console.log(error)
-    return null
-  }
+  const res: T = await response.json()
+  return res
 }
 
 export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
@@ -167,6 +163,7 @@ async function HasGuildCommand(
       const installedNames = data.map((c: any) => c.name)
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (!installedNames.includes(command.name)) {
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         console.log(`Installing "${command.name}"`)
         InstallGuildCommand(appId, guildId, command).catch((err) => {
           console.error('Error installing command:', err)
@@ -189,10 +186,10 @@ async function HasGuildCommand(
 
 // Updates a command
 export async function UpdateGuildCommand(
-  appId: any,
-  guildId: any,
-  commandId: any,
-  command: { [x: string]: any }
+  appId: string,
+  guildId: string,
+  commandId: string,
+  command: any
 ) {
   // API endpoint to get and post guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands/${commandId}`
@@ -203,6 +200,7 @@ export async function UpdateGuildCommand(
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (data) {
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       console.log(`"${command.name}" command updated`)
     }
   } catch (err) {
@@ -212,8 +210,8 @@ export async function UpdateGuildCommand(
 
 // Installs a command
 export async function InstallGuildCommand(
-  appId: any,
-  guildId: any,
+  appId: string,
+  guildId: string,
   command: any
 ) {
   // API endpoint to get and post guild commands
