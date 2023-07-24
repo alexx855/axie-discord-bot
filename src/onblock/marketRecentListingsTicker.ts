@@ -6,15 +6,15 @@ import { DiscordRequest, getFloorPrice } from '../utils'
 
 const AUTO_BUY_FLOOR = false // set to true to auto buy axies at floor price
 const MIN_PROFIT = ethers.utils.parseUnits('0.001', 'ether') // the minimum profit , in ETH, to consider buy an axie
-const AUTO_BUY_MAX_PRICE = ethers.utils.parseUnits('0.002', 'ether') // the max price to auto buy a floor axie, in ETH, if all the conditions are met
-const MAX_PRICE = ethers.utils.parseUnits('10.02', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies
-const MIN_PROFIT_EST_PERCENTAGE = 40 // the minimum difference in % on the floor price to consider buy an axie
-const MAX_BREEDS = 2 // the maximum number of breeds to consider buy an axie
+const AUTO_BUY_MAX_PRICE = ethers.utils.parseUnits('0.00078', 'ether') // the max price to auto buy a floor axie, in ETH, if all the conditions are met
+const MAX_PRICE = ethers.utils.parseUnits('10.420', 'ether') // the max willing to pay per axie, in ETH, just a safe to avoid buy expensive axies
+const MIN_PROFIT_EST_PERCENTAGE = 30 // the minimum difference in % on the floor price to consider buy an axie
+const MAX_BREEDS = 3 // the maximum number of breeds to consider buy an axie
 const MIN_PURENESS = 4 // the minimum pureness to consider buy an axie, les than 4 is considered a TUTIFRUTI 😂
-const MAX_SIMILAR = 40 // the maximun number on sale to consider buy an axie
+const MAX_SIMILAR = 30 // the maximun number on sale to consider buy an axie
 const MIN_SIMILAR = 3 // the minimum number on sale to consider buy an axie
 const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consider buy an axie
-const MIN_EXISTENCE = 3 // the minimum number of similar on existence to consider buy an axie
+const MIN_EXISTENCE = 1 // the minimum number of similar on existence to consider buy an axie
 
 // this script will check for the latest axies listings at the marketplace and look for axies that meet the criteria
 const marketRecentListingsTicker = async () => {
@@ -88,7 +88,7 @@ const marketRecentListingsTicker = async () => {
       const floorPrice = await getFloorPrice()
       if (AUTO_BUY_FLOOR && floorPrice !== null && currentPrice.lt(floorPrice) && currentPrice.lt(AUTO_BUY_MAX_PRICE)) {
         console.log('\x1b[33m%s\x1b[0m', `Auto buying ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is under Ξ${ethers.utils.formatEther(floorPrice)}`)
-
+        // TODO: check for min profit
         const axieId = listing.order.assets[0].id as string
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const order: IMarketBuyOrder = {
