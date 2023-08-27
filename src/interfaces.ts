@@ -41,13 +41,13 @@ export interface MarketPropsInterface extends ICriteria {
 }
 
 export interface IDiscordEmbed {
-  title: string
-  description: string
-  thumbnail: {
+  title?: string
+  description?: string
+  type?: string
+  thumbnail?: {
     url: string
   }
-  color: number
-  type: string
+  color?: number
 }
 
 export interface IScalpedAxie {

@@ -29,9 +29,7 @@ export const CONTRACT_MARKETPLACE_V2_ADDRESS = '0xfff9ce5f71ca6178d3beecedb61e7e
 export const CONTRACT_MARKETPLACE_V2_ABI_JSON_PATH = 'abis/market_v2.json'
 
 export const GRAPHQL_URL = 'https://graphql-gateway.axieinfinity.com/graphql'
-export const SKYMAVIS_AXIE_API_ENDPOINT = 'https://api.skymavis.com/axie/'
-
-export const DEFAULT_GAS_LIMIT = 481338 // 481338 default gas limit for track usage
+export const DEFAULT_GAS_LIMIT = 481338 // default gas limit for track usage
 
 // Command that returns custom axie data, like estimated price
 export const AXIE_COMMAND = {
@@ -48,7 +46,94 @@ export const AXIE_COMMAND = {
   type: 1
 }
 
-// Commands for the orders management
+// Commands for ronin
+export const LIST_AXIE_COMMAND = {
+  name: 'list_axie',
+  description: 'List axie for sale on the marketplace',
+  options: [
+    {
+      name: 'axie_id',
+      description: 'Axie ID',
+      type: 3,
+      required: true,
+    },
+    {
+      name: 'base_price',
+      description: 'Base price',
+      type: 3,
+      required: true,
+    },
+    {
+      name: 'ended_price',
+      description: 'Ended price',
+      type: 3,
+      required: false,
+    },
+    {
+      name: 'duration',
+      description: 'Duration',
+      type: 3,
+      required: false,
+    }
+  ],
+  type: 1
+}
+
+export const UNLIST_AXIE_COMMAND = {
+  name: 'unlist_axie',
+  description: 'Unlist axie from the marketplace',
+  options: [
+    {
+      name: 'axie_id',
+      description: 'Axie ID',
+      type: 3,
+      required: true,
+    }
+  ],
+  type: 1
+}
+
+export const TRANSFER_AXIE_COMMAND = {
+  name: 'transfer_axie',
+  description: 'Transfer axie to another address',
+  options: [
+    {
+      name: 'axie_id',
+      description: 'Axie ID',
+      type: 3,
+      required: true,
+    },
+    {
+      name: 'address',
+      description: 'Address',
+      type: 3,
+      required: true,
+    }
+  ],
+  type: 1
+}
+
+export const TRANSFER_ALL_AXIES_COMMAND = {
+  name: 'transfer_all_axies',
+  description: 'Transfer all axies to another address',
+  options: [
+    {
+      name: 'address',
+      description: 'Address',
+      type: 3,
+      required: true,
+    }
+  ],
+  type: 1
+}
+
+export const RONIN_WALLET_COMMAND = {
+  name: 'ronin_wallet',
+  description: 'Get bot ronin WALLET details',
+  type: 1
+}
+
+// Commands for the sniper orders management
 export const GET_ORDERS_COMMAND = {
   name: 'get_orders',
   description: 'Get open bot orders',

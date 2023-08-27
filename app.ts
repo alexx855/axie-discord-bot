@@ -2,8 +2,10 @@ import {
   AXIE_COMMAND,
   GET_ORDERS_COMMAND,
   REMOVE_ORDER_COMMAND,
-  ADD_ORDER_COMMAND
-} from './constants'
+  ADD_ORDER_COMMAND,
+  RONIN_WALLET_COMMAND,
+  TRANSFER_ALL_AXIES_COMMAND,
+} from './src/constants'
 import express from 'express'
 import {
   InteractionType,
@@ -11,25 +13,48 @@ import {
   MessageComponentTypes
 } from 'discord-interactions'
 import { ethers } from 'ethers'
-import { getAxieEmbed } from './src/axies'
 import { randomUUID } from 'crypto'
-import { MarketPropsInterface, IMarketOrder } from './src/interfaces'
+import { MarketPropsInterface, IMarketOrder, IDiscordEmbed } from './src/interfaces'
 import { getRedisMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
-import { VerifyDiscordRequest, HasGuildCommands } from './src/utils'
+import { VerifyDiscordRequest } from './src/utils'
 import discordOrdersTicker from './src/onblock/discordOrdersTicker'
-import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
+// import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
+import { batchTransferAxies, getAxieContract, getAxieIdsFromAccount, getUSDCContract, getWETHContract } from 'axie-ronin-ethers-js-tools'
+import { getAxieEmbed } from './src/axies'
+import path from 'node:path'
+
 import * as dotenv from 'dotenv'
 dotenv.config()
 
 // Create an express app
 const app = express()
-// Get port, or default to 3001
-const PORT = process.env.EXPRESS_PORT ?? 3001
+
 // Parse request body and verifies incoming requests using discord-interactions package
-console.log('Verifying requests', process.env.DISCORD_PUBLIC_KEY ?? '<Discord public key>')
+console.log('Verifying requests')
+
+if (process.env.PRIVATE_KEY === undefined || process.env.SKIMAVIS_DAPP_KEY === undefined || process.env.DISCORD_PUBLIC_KEY === undefined || process.env.DISCORD_GUILD_ID === undefined) {
+  throw new Error('Missing environment variables')
+}
+
 app.use(
-  express.json({ verify: VerifyDiscordRequest(process.env.DISCORD_PUBLIC_KEY ?? '<Discord public key>') })
+  express.json({ verify: VerifyDiscordRequest(process.env.DISCORD_PUBLIC_KEY) })
 )
+
+// Get jsonrpc provider for ronin network see https://docs.skymavis.com/api/rpc
+const connection = {
+  url: 'https://api-gateway.skymavis.com/rpc',
+  headers: {
+    'x-api-key': process.env.SKIMAVIS_DAPP_KEY // get from https://developers.skymavis.com/console/applications/
+  }
+}
+const network = {
+  name: 'ronin',
+  chainId: 2020
+}
+const provider = new ethers.providers.JsonRpcProvider(connection, network)
+
+// Import the wallet private key from the environment
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
 
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
@@ -53,8 +78,7 @@ app.post('/interactions', async (req, res) => {
    */
   if (type === InteractionType.APPLICATION_COMMAND) {
     const { name } = data
-    // console.log('Command name:', name)
-    if (name === 'axie') {
+    if (name === AXIE_COMMAND.name) {
       // Send a message into the channel where command was triggered from
       const axieId = data.options[0].value as string
       try {
@@ -69,15 +93,103 @@ app.post('/interactions', async (req, res) => {
           }
         })
       } catch (error) {
-        console.log('Error:', error)
+        console.log(error)
+      }
+    } else if (name === RONIN_WALLET_COMMAND.name) {
+      // get bot wallet account info, balance, etc
+      const address = await wallet.getAddress()
+
+      // get RON balance
+      const balance = await provider.getBalance(address)
+      const balanceInEther = ethers.utils.formatEther(balance)
+
+      // get WETH balance
+      const wethContract = await getWETHContract(provider)
+      const wethBalance = await wethContract.balanceOf(address)
+      const wethBalanceInEther = ethers.utils.formatEther(wethBalance)
+
+      // get axies balance for the address
+      const axieContract = await getAxieContract(provider)
+      const axiesBalance = await axieContract.balanceOf(address)
+
+      // get USDC balance
+      const usdcContract = await getUSDCContract(provider)
+      const usdcBalance = await usdcContract.balanceOf(address)
+      const usdcBalanceFormated = ethers.utils.formatUnits(usdcBalance, 6)
+
+      // Send a message into the channel where command was triggered from
+      return res.send({
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: {
+          content: `Address: ${address.replace('0x', 'ronin:')}\nRON: ${balanceInEther}\nWETH: ${wethBalanceInEther}\nUSDC: ${usdcBalanceFormated}\nAxies: ${ethers.BigNumber.from(axiesBalance).toString()}`,
+        }
+      })
+    } else if (name === TRANSFER_ALL_AXIES_COMMAND.name) {
+      try {
+        const addressFrom = await wallet.getAddress()
+        const addressTo: string = data.options[0].value.replace('ronin:', '0x').toLowerCase()
+        console.log(`transfering all axies from ${addressFrom} to ${addressTo}`)
+        // get all axies ids from the account
+        const axieIds = await getAxieIdsFromAccount(addressFrom, provider)
+        console.log('axieIds', axieIds)
+        const axies: string[] = axieIds.map((axieId) => {
+          return axieId.toString()
+        })
+        // wait for tx to be mined and get receipt
+        // await wallet.connect(provider)
+        batchTransferAxies(addressFrom, addressTo, axies, wallet)
+          .then((receipt) => {
+            console.log('receipt', receipt.transactionHash)
+            // TODO: update message with link to the tx
+            // components: [
+            //   {
+            //     type: 1,
+            //     components: [
+            //       {
+            //         type: 2,
+            //         label: 'Open Tx on Ronin explorer',
+            //         style: 5,
+            //         url: exploreTxLink
+            //       }
+            //     ]
+            //   }
+            // ],
+            // console.log('receipt', receipt)
+            // const receipt2 = await provider.waitForTransaction(receipt.transactionHash)
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+            // const exploreTxLink = `https://app.roninchain.com/tx/${receipt2.transactionHash}`
+          })
+          .catch((error) => {
+            console.log(error)
+          })
+
+        // Send a message into the channel where command was triggered from
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            embeds: [
+              {
+                title: `Transfering ${axies.length} axies:`,
+                description: `**From:** ${addressFrom.replace('0x', 'ronin:')} \n **To:** ${addressTo.replace('0x', 'ronin:')}`
+              }
+            ],
+          },
+        })
+      } catch (error) {
+        console.log(error)
+        return res.send({
+          type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+          data: {
+            content: 'Error: Unknown error'
+          }
+        })
       }
     }
 
     // Check for allowed user only, we dont want to anyone else to use this commands
     const userId: string = req.body.member.user.id
-    console.log('userId')
-    console.log(userId)
-    const adminId: string = process.env.DISCORD_USER_ID ?? ''
+
+    const adminId = process.env.DISCORD_USER_ID ?? ''
     if (userId !== adminId) {
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -87,17 +199,17 @@ app.post('/interactions', async (req, res) => {
       })
     }
 
-    if (name === 'get_orders') {
+    if (name === GET_ORDERS_COMMAND.name) {
       // Get orders from redis
       const orders = await getRedisMarketOrders()
       let content = ''
 
       if (orders.length > 0) {
         // console.log('orders', orders)
-        content = `I've the following open order${orders.length > 1 ? 's' : ''}:\r\n`
+        content = ''
 
         for (const order of orders) {
-          content = content + 'Order ID: **' + order.id.toString() + '**\nTrigger price: ' + order.triggerPrice.toString() + ' \n'
+          content = content + 'Order ID: **' + order.id.toString() + '**\nTrigger price: ' + order.triggerPrice.toString() + ' ETH \n'
           content = content + order.marketUrl + '\n'
           if (order !== orders[orders.length - 1]) {
             content = content + '------------------------\r\n'
@@ -107,16 +219,21 @@ app.post('/interactions', async (req, res) => {
         content = 'I\'ve no open orders.\nUse **/add_order** to add one.'
       }
 
+      const embed = {
+        description: content,
+        type: 'rich'
+      }
       // Send a message into the channel where command was triggered from
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
-          content
+          content: `I've the following open order${orders.length > 1 ? 's' : ''}:\r\n`,
+          embeds: [embed]
         }
       })
     }
 
-    if (name === 'remove_order') {
+    if (name === REMOVE_ORDER_COMMAND.name) {
       // Get orders date from options value, it's the id of the order, shame on me (┬┬﹏┬┬)
       const orderID = data.options[0].value as string
       // Default response
@@ -142,7 +259,7 @@ app.post('/interactions', async (req, res) => {
       })
     }
 
-    if (data.name === 'add_order') {
+    if (data.name === ADD_ORDER_COMMAND.name) {
       // Send a modal as response
       return res.send({
         type: InteractionResponseType.APPLICATION_MODAL,
@@ -200,17 +317,11 @@ app.post('/interactions', async (req, res) => {
     const userId = req.body.member.user.id as string
 
     if (modalId === 'add_order_modal') {
-      let modalValues = ''
-      // Get value of text inputs
-      for (const action of data.components) {
-        const inputComponent = action.components[0]
-        modalValues += `${inputComponent.custom_id as string}: ${inputComponent.value as string
-          }\n`
-      }
-
       // get market props from modal, it's the market url ej: https://app.axieinfinity.com/marketplace/axies/?class=Plant&part=ears-sakura&part=mouth-silence-whisper&part=horn-strawberry-shortcake&auctionTypes=Sale
       const marketPropsFromModal = data.components[0].components[0].value as string
       const marketUrl = marketPropsFromModal
+
+      // TODO: get from query params
       // convert to params, split ? and &
       const marketPropsArray = marketPropsFromModal.replace(
         'https://app.axieinfinity.com/marketplace/axies/',
@@ -233,8 +344,7 @@ app.post('/interactions', async (req, res) => {
 
       // get and parse trigger price
       const priceFromModal = ethers.utils.parseUnits(data.components[1].components[0].value, 'ether')
-      // todo: validate price
-      if (!priceFromModal._isBigNumber) {
+      if (!priceFromModal._isBigNumber || !priceFromModal.gte(0)) {
         return res.send({
           type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
           data: {
@@ -259,11 +369,19 @@ app.post('/interactions', async (req, res) => {
         console.log(error)
       }
 
+      const embed: IDiscordEmbed = {
+        title: 'Order ' + newOrder.id,
+        description: `Market URL: ${marketUrl}\nTrigger price: ${ethers.utils.formatEther(priceFromModal)} ETH`,
+        type: 'rich'
+      }
+
       return res.send({
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
           content: `<@${userId
-            }> created the following order:\n\n${modalValues}`
+            }> created the following order:\n`,
+          embeds: [embed],
+          tts: false,
         }
       })
     }
@@ -278,69 +396,48 @@ app.post('/interactions', async (req, res) => {
   }
 })
 
-app.listen(PORT, () => {
-  // console.log('Listening on port', PORT)
+app.listen(3000, () => {
   if (process.env.DISCORD_CLIENT_ID === undefined || process.env.DISCORD_GUILD_ID === undefined) {
     console.log('Missing env vars, exiting...')
     process.exit(1)
   }
 
-  const chainId = Number(process.env.RONIN_NETWORK_CHAIN_ID)
-  const url = process.env.RONIN_NETWORK_RPC_URL
-  if (chainId === undefined || url === undefined) {
-    console.log('Missing network config, exiting...')
-    process.exit(1)
-  }
-
-  const appId = process.env.DISCORD_CLIENT_ID
-  const guildId = process.env.DISCORD_GUILD_ID
-
-  // Check if guild commands are installed (if not, install them)
-  HasGuildCommands(appId, guildId, [
-    AXIE_COMMAND,
-    GET_ORDERS_COMMAND,
-    REMOVE_ORDER_COMMAND,
-    ADD_ORDER_COMMAND
-  ])
-
-  const network = {
-    name: 'ronin',
-    chainId
-  }
-
-  // subscribe to new blocks from the provider
-  const provider = new ethers.providers.JsonRpcProvider(url, network)
   let time = Date.now()
-  provider.on('block', (blockNumber: number) => {
+  // Subscribe to new blocks
+  setInterval(() => {
     const diff = Date.now() - time
     time = Date.now()
+
     // Not sure why some blocks came at the same time, but we don't want to process them together
     if (diff < 100) {
       return
     }
 
-    console.log('\x1b[33m%s\x1b[0m', `new block ${blockNumber} received after ${diff}ms`)
+    console.log('\x1b[33m%s\x1b[0m', `new worker received after ${diff}ms`)
     // track time
     const sTime = Date.now()
 
-    // get recent listings, scrape for floor price axies
-    marketRecentListingsTicker()
-      .catch((error) => console.log(error))
-      .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
+    // // get recent listings, scrape for floor price axies
+    // marketRecentListingsTicker(provider, wallet)
+    //   .catch((error) => console.log(error))
+    //   .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
 
     // check for the discord created orders by criteria
-    discordOrdersTicker()
+    discordOrdersTicker(provider, wallet)
       .catch((error) => console.log(error))
       .finally(() => console.log('\x1b[36m%s\x1b[0m', `discordOrdersTicker finished after ${Date.now() - sTime}ms`))
-  })
+  }, 10000)
+})
+
+app.get('/', (req, res) => {
+  res.send('Hello Bot!')
+})
+
+// Privacy policy and terms of service, required for Discord App
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'privacy-policy.html'))
 })
 
 app.get('/terms-of-service', (req, res) => {
-  // TODO: Add terms of service, discord requires it for the authorized application
-  res.send('Terms of Service')
-})
-
-app.get('/privacy-policy', (req, res) => {
-  // TODO: Add privacy policy, discord requires it for the authorized application
-  res.send('Privacy Policy')
+  res.sendFile(path.join(__dirname, 'terms-of-service.html'))
 })

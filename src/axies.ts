@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { IAxieData, ICriteria, IDiscordEmbed, IMarketBuyOrder } from './interfaces'
 import { fetchMarketByCriteria } from './market'
 import { DiscordRequest, fetchAxieQuery } from './utils'
+import { buyMarketplaceOrder } from 'axie-ronin-ethers-js-tools'
 
 export const getAxieData = async (axieId: string) => {
   // Send a simple query to the graphql api to get the axie data
@@ -141,19 +142,29 @@ fragment AssetInfo on Asset {
   return false
 }
 
-export async function buyAxie(order: IMarketBuyOrder) {
-  // call the hardhart task buy with the order as argument
-  // const tx: string = await waitFortx()
-  const tx: string = '0x123456789'
-  console.log('\x1b[33m%s\x1b[0m', 'The bot will try to execute the tx order now')
-  // console.log(`--txhash ${tx}`)
+export async function buyAxie(order: IMarketBuyOrder, provider: ethers.providers.JsonRpcProvider, wallet: ethers.Wallet) {
+  // call the contract from provider buy with the order
 
-  // todo: validate if the tx failed, update the message with the error or the success
+  // Wait for the transaction to be mined
+  const skymavisApyKey = process.env.SKIMAVIS_DAPP_KEY ?? '' // get from https://developers.skymavis.com/console/applications/
+  console.log('\x1b[33m%s\x1b[0m', 'The bot will try to execute the tx order now')
+  const receipt = await buyMarketplaceOrder(+order.axieId, wallet, provider, skymavisApyKey)
+
+  if (receipt === false) {
+    console.log('\x1b[33m%s\x1b[0m', 'The bot failed to execute the tx order')
+    return false
+  }
+
+  console.log('\x1b[33m%s\x1b[0m', 'The bot executed the tx order successfully')
+  const tx: string = receipt.transactionHash
+
+  // TODO: validate if the tx failed, update the message with the error or the success
 
   // send a message to the discord channel if we've defined one
   if (process.env.BOT_CHANNEL_ID !== undefined) {
-    const embed = await getAxieEmbed(order.axieId)
-    const exploreTxLink = `https://explorer.roninchain.com/tx/${tx}`
+    console.log('\x1b[33m%s\x1b[0m', 'Sending message to discord channel')
+    const embed = await getAxieEmbed(order.axieId, true)
+    const exploreTxLink = `https://app.roninchain.com/tx/${tx}`
     void DiscordRequest(`/channels/${process.env.BOT_CHANNEL_ID}/messages`, {
       method: 'POST',
       body:
@@ -230,7 +241,7 @@ export async function getAxieEstimatedPrice(axieData: IAxieData['data']['axie'],
   return floorPrice
 }
 
-export async function getAxieEmbed(axieId: string): Promise<false | IDiscordEmbed> {
+export async function getAxieEmbed(axieId: string, resume = false) {
   const axie = await getAxieData(axieId)
   if (axie === false) {
     return false
@@ -248,13 +259,15 @@ export async function getAxieEmbed(axieId: string): Promise<false | IDiscordEmbe
     content = content + `\nhttps://app.axieinfinity.com/marketplace/axies/${axie.id}`
   }
 
-  content = content + `\n\r**Parts:**\n${axie.parts.map((part) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
-  // content = content + `\n\r**Origin Stats:**\n`
-  content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key as keyof typeof axie.stats]}`).join('\n')}`
-  content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key as keyof typeof axie.potentialPoints] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key as keyof typeof axie.potentialPoints]}`).join('\n')}`
-  content = content + `\n\r**Owner:** ${axie.ownerProfile?.name ?? 'Unknown'}`
-  // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
-  content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
+  if (!resume) {
+    content = content + `\n\r**Parts:**\n${axie.parts.map((part) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
+    // content = content + `\n\r**Origin Stats:**\n`
+    content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key as keyof typeof axie.stats]}`).join('\n')}`
+    content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key as keyof typeof axie.potentialPoints] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key as keyof typeof axie.potentialPoints]}`).join('\n')}`
+    content = content + `\n\r**Owner:** ${axie.ownerProfile?.name ?? 'Unknown'}`
+    // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
+    content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
+  }
 
   // custom embed color by axie class
   const color = getClassColor(axie.class)

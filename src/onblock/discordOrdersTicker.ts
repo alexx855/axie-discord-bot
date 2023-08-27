@@ -3,7 +3,7 @@ import { buyAxie } from '../axies'
 import { ICriteria, IMarketBuyOrder } from '../interfaces'
 import { getRedisMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
 
-const discordOrdersTicker = async () => {
+const discordOrdersTicker = async (provider: ethers.providers.JsonRpcProvider, wallet: ethers.Wallet) => {
   // get buy created from discord
   const marketOrders = await getRedisMarketOrders()
   if (marketOrders.length > 0) {
@@ -47,7 +47,7 @@ const discordOrdersTicker = async () => {
       const res = await fetchMarketByCriteria(criteria, 0, 3, 'Latest', 'Sale')
 
       if (res === false) {
-        throw new Error('error fetching API')
+        return false
       }
 
       // get the first result, the cheapest one
@@ -64,9 +64,6 @@ const discordOrdersTicker = async () => {
 
       // check if the current price is lower than the trigger price, if so, buy the axie
       if (triggerPrice.gte(currentPrice)) {
-        // remove the market order from the orders array, to prevent it from being executed again
-        await removeMarketOrder(marketOrder.id)
-
         const axieId = result.order.assets[0].id as string
         const order: IMarketBuyOrder = {
           id: result.order.id,
@@ -84,7 +81,13 @@ const discordOrdersTicker = async () => {
         }
 
         // buy the axie
-        await buyAxie(order)
+        const receipt = await buyAxie(order, provider, wallet)
+        // remove the market order from the orders array, to prevent it from being executed again
+        if (receipt !== false) {
+          console.log(receipt)
+          console.log('removing market order')
+          await removeMarketOrder(marketOrder.id)
+        }
       }
     }
   }

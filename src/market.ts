@@ -1,5 +1,5 @@
 import { IMarketOrder, IAsset, ICriteria } from './interfaces'
-import { fetchAxieQuery, redisClient } from './utils'
+import { fetchAxieQuery, createRedisClient } from './utils'
 
 export async function fetchMarketRecentlistings(variables = {
   from: 0,
@@ -200,7 +200,6 @@ export async function fetchMarketByCriteria(
   sort = 'Latest',
   auctionType?: string
 ) {
-  // console.log('fetchMarket', marketOrder)
   const query = `
     query GetAxieBriefList(
       $auctionType: AuctionType
@@ -317,8 +316,7 @@ export async function fetchMarketByCriteria(
     console.log('error fetching market by criteria', res)
     // { message: 'API rate limit exceeded' }
     if ((res != null) && res.message === 'API rate limit exceeded') {
-      // wait for 10 secs
-      await new Promise(resolve => setTimeout(resolve, 10000))
+      // await new Promise(resolve => setTimeout(resolve, 10000))
     }
 
     // throw new Error('error fetching market by criteria')
@@ -328,24 +326,27 @@ export async function fetchMarketByCriteria(
 }
 
 export async function getLastestAxieListingId() {
-  await redisClient.connect()
-  const lastId = await redisClient.get('LastestAxieListingId')
-  await redisClient.disconnect()
+  const client = createRedisClient()
+  await client.connect()
+  const lastId = await client.get('LastestAxieListingId')
+  await client.disconnect()
   return lastId ?? ''
 }
 
 export async function setMostRecentlistingAxieId(axieId: string) {
-  await redisClient.connect()
-  await redisClient.set('LastestAxieListingId', axieId)
-  await redisClient.disconnect()
+  const client = createRedisClient()
+  await client.connect()
+  await client.set('LastestAxieListingId', axieId)
+  await client.disconnect()
+  return axieId
 }
 
 export async function getRedisMarketOrders() {
   const ordersArray: IMarketOrder[] = []
-  await redisClient.connect()
-
-  const orders = await redisClient.get('orders')
-  await redisClient.disconnect()
+  const client = createRedisClient()
+  await client.connect()
+  const orders = await client.get('orders')
+  await client.disconnect()
   if (orders !== null) {
     ordersArray.push(...JSON.parse(orders))
   }
@@ -354,28 +355,34 @@ export async function getRedisMarketOrders() {
 }
 
 export async function setMarketOrders(orders: IMarketOrder[]) {
-  await redisClient.connect()
-  await redisClient.set('orders', JSON.stringify(orders))
-  await redisClient.disconnect()
+  const client = createRedisClient()
+  await client.connect()
+  await client.set('orders', JSON.stringify(orders))
+  await client.disconnect()
+  return orders
 }
 
 export async function updateMarketOrder(order: IMarketOrder) {
-  await redisClient.connect()
-  const orders = await redisClient.get('orders')
+  const orders = await getRedisMarketOrders()
   if (orders !== null) {
-    const ordersArray = JSON.parse(orders)
-    const index = ordersArray.findIndex((o: IMarketOrder) => o.id === order.id)
-    if (index !== -1) {
-      ordersArray[index] = order
+    const client = createRedisClient()
+    await client.connect()
+
+    const orderIndex = orders.findIndex((o) => o.id === order.id)
+    if (orderIndex !== -1) {
+      orders[orderIndex] = order
+      await client.set('orders', JSON.stringify(orders))
     }
-    await redisClient.set('orders', JSON.stringify(ordersArray))
+    await client.disconnect()
   }
-  await redisClient.disconnect()
+  return order
 }
 
 export async function addMarketOrder(newOrder: IMarketOrder) {
   const orders = await getRedisMarketOrders()
-  await setMarketOrders([...orders, newOrder])
+  const newOrders = [...orders, newOrder]
+  await setMarketOrders(newOrders)
+  return newOrders
 }
 
 export async function removeMarketOrder(orderId: string) {
@@ -388,4 +395,20 @@ export async function removeMarketOrder(orderId: string) {
     // Set the new orders
     await setMarketOrders(orders)
   }
+  return orders
+}
+
+export async function getFloorPrice() {
+  const client = createRedisClient()
+  await client.connect()
+  const lastId = await client.get('floorPrice')
+  await client.disconnect()
+  return lastId ?? null
+}
+
+export async function setFloorPrice(price: string) {
+  const client = createRedisClient()
+  await client.connect()
+  await client.set('floorPrice', price)
+  await client.disconnect()
 }

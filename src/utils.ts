@@ -1,15 +1,15 @@
 import { verifyKey } from 'discord-interactions'
 import { ethers } from 'ethers'
 import { createClient } from 'redis'
-import { GRAPHQL_URL } from '../constants'
+import { GRAPHQL_URL } from './constants'
 import * as dotenv from 'dotenv'
 dotenv.config()
 
 // redis client
-export const redisClient = createClient({
+export const createRedisClient = () => createClient({
   socket: {
-    host: process.env.REDIS_HOST ?? 'host.docker.internal',
-    port: 6379
+    host: process.env.REDIS_HOST ?? 'localhost',
+    port: 6379,
   },
   password: process.env.REDIS_PASSWORD ?? 'password'
 }).on('error', (err) => console.log('Redis Error', err))
@@ -33,10 +33,15 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // Stringify payloads
   // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (options?.body) options.body = JSON.stringify(options.body)
+
+  if (process.env.DISCORD_TOKEN === undefined) {
+    throw new Error('Discord token is undefined')
+  }
+
   // Use node-fetch to make requests
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bot ${process.env.DISCORD_TOKEN as string}`,
+      Authorization: `Bot ${process.env.DISCORD_TOKEN}`,
       'Content-Type': 'application/json; charset=UTF-8',
       'User-Agent': 'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.1.0)'
     },
@@ -62,6 +67,7 @@ export async function fetchAxieQuery<T>(query: string, variables: { [key: string
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // 'x-api-key': process.env.SKIMAVIS_DAPP_KEY as string,
       ...headers
     },
     body: JSON.stringify({ query, variables })
@@ -73,166 +79,26 @@ export async function fetchAxieQuery<T>(query: string, variables: { [key: string
 
 export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
 
-export const getRandomMessage = async (): Promise<string | false> => {
-  const query = `mutation CreateRandomMessage {
-    createRandomMessage
-  }`
-  interface IRandomMessage {
-    data?: {
-      createRandomMessage: string
-    }
-    errors?: {
-      message: string
-    }
-  }
-  const res = await fetchAxieQuery<IRandomMessage>(query, {})
-
-  if (res === null || res.data === undefined) {
-    return false
-  }
-  return res.data.createRandomMessage
-}
-
-export const createAccessTokenWithSignature = async (owner: string, message: string, signature: string): Promise<string | false> => {
-  const query = `mutation CreateAccessTokenWithSignature($input: SignatureInput!) {
-    createAccessTokenWithSignature(input: $input) {
-      newAccount
-      result
-      accessToken
-      __typename
-    }
-  }`
-  interface ICreateAccessTokenResponse {
-    data?: {
-      createAccessTokenWithSignature: {
-        accessToken: string
-      }
-    }
-    errors?: {
-      message: string
-    }
-  }
-
-  const variables = { input: { mainnet: 'ronin', owner, message, signature } }
-  const res = await fetchAxieQuery<ICreateAccessTokenResponse>(query, variables)
-
-  if (res !== null) {
-    if (res.data?.createAccessTokenWithSignature.accessToken !== undefined) {
-      return res.data.createAccessTokenWithSignature.accessToken
-    }
-
-    if (res.errors !== undefined) {
-      console.error(res.errors)
-    }
-  }
-
-  console.log('Error creating access token')
-  return false
-}
-
-export function HasGuildCommands(
-  appId: string,
-  guildId: string,
-  commands: any[]
-) {
-  if (guildId === '' || appId === '') return
-
-  commands.forEach((c: any) => {
-    HasGuildCommand(appId, guildId, c).catch((err) => {
-      console.error('Error checking command:', err)
-    })
-  })
-}
-
-// Checks for a command
-async function HasGuildCommand(
-  appId: string,
-  guildId: string,
-  command: { [x: string]: any }
-) {
-  // API endpoint to get and post guild commands
+export async function InstallGuildCommands(appId: string, guildId: string, commands: any[]) {
+  // API endpoint to overwrite guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands`
 
   try {
-    const res = await DiscordRequest(endpoint, { method: 'GET' })
-    const data = await res.json()
-
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (data) {
-      // This is just matching on the name, so it's not good for updates
-      const installedNames = data.map((c: any) => c.name)
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (!installedNames.includes(command.name)) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        console.log(`Installing "${command.name}"`)
-        InstallGuildCommand(appId, guildId, command).catch((err) => {
-          console.error('Error installing command:', err)
-        })
-      }
-      // Uncomment this to update commands if you change something like the modal
-      // else {
-      //   console.log(`"${command.name}" command already installed`)
-      //   // Update command
-      //   const commandId = data.find((c: any) => c.name === command.name).id
-      //   UpdateGuildCommand(appId, guildId, commandId, command).catch((err) => {
-      //     console.error('Error updating command:', err)
-      //   })
-      // }
-    }
+    // This is calling the bulk overwrite endpoint: https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
+    await DiscordRequest(endpoint, { method: 'PUT', body: commands })
   } catch (err) {
     console.error(err)
   }
 }
 
-// Updates a command
-export async function UpdateGuildCommand(
-  appId: string,
-  guildId: string,
-  commandId: string,
-  command: any
-) {
-  // API endpoint to get and post guild commands
-  const endpoint = `applications/${appId}/guilds/${guildId}/commands/${commandId}`
+export async function InstallGlobalCommands(appId: string, commands: any[]) {
+  // API endpoint to overwrite global commands
+  const endpoint = `applications/${appId}/commands`
 
   try {
-    const res = await DiscordRequest(endpoint, { method: 'PATCH', body: command })
-    const data = await res.json()
-
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (data) {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      console.log(`"${command.name}" command updated`)
-    }
+    // This is calling the bulk overwrite endpoint: https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
+    await DiscordRequest(endpoint, { method: 'PUT', body: commands })
   } catch (err) {
     console.error(err)
   }
-}
-
-// Installs a command
-export async function InstallGuildCommand(
-  appId: string,
-  guildId: string,
-  command: any
-) {
-  // API endpoint to get and post guild commands
-  const endpoint = `applications/${appId}/guilds/${guildId}/commands`
-  // install command
-  try {
-    await DiscordRequest(endpoint, { method: 'POST', body: command })
-  } catch (err) {
-    console.error(err)
-  }
-}
-
-export async function getFloorPrice() {
-  await redisClient.connect()
-  const lastId = await redisClient.get('floorPrice')
-  await redisClient.disconnect()
-  return lastId ?? null
-}
-
-export async function setFloorPrice(price: string) {
-  await redisClient.connect()
-  await redisClient.set('floorPrice', price)
-  await redisClient.disconnect()
 }

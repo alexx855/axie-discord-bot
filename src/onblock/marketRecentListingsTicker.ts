@@ -1,8 +1,8 @@
 import { ethers } from 'ethers'
-import { buyAxie, getAxieTransferHistory, getClassColor } from '../axies'
+import { buyAxie, getClassColor } from '../axies'
 import { IScalpedAxie, ICriteria, IMarketBuyOrder } from '../interfaces'
-import { fetchMarketRecentlistings, fetchMarketByCriteria, getLastestAxieListingId, setMostRecentlistingAxieId } from '../market'
-import { DiscordRequest, getFloorPrice } from '../utils'
+import { fetchMarketRecentlistings, fetchMarketByCriteria, getLastestAxieListingId, setMostRecentlistingAxieId, getFloorPrice } from '../market'
+import { DiscordRequest } from '../utils'
 
 const AUTO_BUY_FLOOR = false // set to true to auto buy axies at floor price
 const MIN_PROFIT = ethers.utils.parseUnits('0.001', 'ether') // the minimum profit , in ETH, to consider buy an axie
@@ -17,12 +17,11 @@ const MAX_EXISTENCE = 500 // the maximun number of similar on existence to consi
 const MIN_EXISTENCE = 1 // the minimum number of similar on existence to consider buy an axie
 
 // this script will check for the latest axies listings at the marketplace and look for axies that meet the criteria
-const marketRecentListingsTicker = async () => {
+const marketRecentListingsTicker = async (provider: ethers.providers.JsonRpcProvider, wallet: ethers.Wallet) => {
   try {
     // get latest market listings from api
     const listings = await fetchMarketRecentlistings()
     if (listings === false) {
-      // console.log('\x1b[91m%s\x1b[0m', 'error fetching latest listings')
       return
     }
 
@@ -48,15 +47,15 @@ const marketRecentListingsTicker = async () => {
       let lastSoldDate,
         lastSoldPrice
 
-      // get the last sold price from the similar Axie's listing history
-      const transferHistoryData = await getAxieTransferHistory(listing.id)
-      if (transferHistoryData !== null && transferHistoryData.transferHistory.results.length > 0) {
-        const transferHistory = transferHistoryData.transferHistory
-        const sDate = new Date(transferHistory.results[0].timestamp * 1000)
-        lastSoldDate = sDate.toLocaleString()
-        const sPrice = ethers.BigNumber.from(transferHistory.results[0].withPrice)
-        lastSoldPrice = sPrice.toString()
-      }
+      // // get the last sold price from the similar Axie's listing history
+      // const transferHistoryData = await getAxieTransferHistory(listing.id)
+      // if (transferHistoryData !== null && transferHistoryData.transferHistory.results.length > 0) {
+      //   const transferHistory = transferHistoryData.transferHistory
+      //   const sDate = new Date(transferHistory.results[0].timestamp * 1000)
+      //   lastSoldDate = sDate.toLocaleString()
+      //   const sPrice = ethers.BigNumber.from(transferHistory.results[0].withPrice)
+      //   lastSoldPrice = sPrice.toString()
+      // }
 
       // check if the axie is under the max price willing to pay
       const currentPrice = ethers.BigNumber.from(listing.order.currentPrice)
@@ -88,8 +87,7 @@ const marketRecentListingsTicker = async () => {
       const floorPrice = await getFloorPrice()
       if (AUTO_BUY_FLOOR && floorPrice !== null && currentPrice.lt(floorPrice) && currentPrice.lt(AUTO_BUY_MAX_PRICE)) {
         console.log('\x1b[33m%s\x1b[0m', `Auto buying ${listing.id} price Ξ${ethers.utils.formatEther(currentPrice)} is under Ξ${ethers.utils.formatEther(floorPrice)}`)
-        // TODO: check for min profit
-        const axieId = listing.order.assets[0].id as string
+        const axieId = listing.order.assets[0].id
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const order: IMarketBuyOrder = {
           id: listing.order.id,
@@ -107,7 +105,11 @@ const marketRecentListingsTicker = async () => {
         }
 
         // buy the axie
-        void buyAxie(order)
+        try {
+          await buyAxie(order, provider, wallet)
+        } catch (error) {
+          console.log(error)
+        }
 
         break
       }
@@ -125,7 +127,6 @@ const marketRecentListingsTicker = async () => {
         'Sale'
       )
 
-      // ?? maybe i can just get the total from rpc instead to save an api request
       const similarAxies = await fetchMarketByCriteria(
         criteria
       )

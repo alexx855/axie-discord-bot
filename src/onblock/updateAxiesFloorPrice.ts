@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
-import { fetchMarketByCriteria } from '../market'
-import { DiscordRequest, getFloorPrice, setFloorPrice } from '../utils'
+import { fetchMarketByCriteria, getFloorPrice, setFloorPrice } from '../market'
+import { DiscordRequest } from '../utils'
 
 // this script will check for the latest axies listings at the marketplace and save the floor price to redis
 const updateAxiesFloorPrice = async (blockNumber: number) => {
