@@ -2,22 +2,26 @@ version: '3.7'
 services:
   axiebot:
     build: .
+    restart: unless-stopped
     user: node
     env_file: .env
     volumes:
       - .:/workspace:cached
+    command: ["npm", "run", "${NODE_DEV-start}"]
     ports:
-      - target: 3001
-        published: 3001
+      - target: 3000
+        published: ${EXPRESS_PORT-3000}
         protocol: tcp
     depends_on:
       - redis
   redis:
     image: redis:alpine
+    env_file: .env
+    restart: unless-stopped
     command: /bin/sh -c "redis-server --requirepass ${REDIS_PASSWORD-password}"
     volumes:
       - ./data-redis:/data
     ports:
       - target: 6379
-        published: 6379
+        published: ${REDIS_PORT-6379}
         protocol: tcp
