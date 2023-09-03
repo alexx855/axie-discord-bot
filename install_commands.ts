@@ -12,13 +12,13 @@ const main = () => {
   InstallGuildCommands(appId, guildId, [
     RONIN_WALLET_COMMAND,
     TRANSFER_ALL_AXIES_COMMAND,
-    // TRANSFER_AXIE_COMMAND,
-    // LIST_AXIE_COMMAND,
-    // UNLIST_AXIE_COMMAND,
     AXIE_COMMAND,
     GET_ORDERS_COMMAND,
     REMOVE_ORDER_COMMAND,
-    ADD_ORDER_COMMAND
+    ADD_ORDER_COMMAND,
+    // TRANSFER_AXIE_COMMAND,
+    // LIST_AXIE_COMMAND,
+    // UNLIST_AXIE_COMMAND,
   ])
     .then((res) => {
       console.log('Installed global commands', res)
