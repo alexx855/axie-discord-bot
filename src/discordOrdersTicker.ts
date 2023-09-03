@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
-import { buyAxie } from '../axies'
-import { ICriteria, IMarketBuyOrder } from '../interfaces'
-import { getRedisMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder } from '../market'
+import { buyAxie } from './axies'
+import { ICriteria, IMarketBuyOrder } from './interfaces'
+import { getRedisMarketOrders, fetchMarketByCriteria, removeMarketOrder, updateMarketOrder, addMarketOrder } from './market'
 
 const discordOrdersTicker = async (provider: ethers.providers.JsonRpcProvider, wallet: ethers.Wallet) => {
   // get buy created from discord
@@ -45,8 +45,8 @@ const discordOrdersTicker = async (provider: ethers.providers.JsonRpcProvider, w
       }
 
       const res = await fetchMarketByCriteria(criteria, 0, 3, 'Latest', 'Sale')
-
-      if (res === false) {
+      console.log(res)
+      if (res === false || res.results.length === 0) {
         return false
       }
 
@@ -79,14 +79,16 @@ const discordOrdersTicker = async (provider: ethers.providers.JsonRpcProvider, w
           nonce: result.order.nonce,
           signature: result.order.signature
         }
+        // remove the market order from the orders array, to prevent it from being executed again
+        await removeMarketOrder(marketOrder.id)
 
         // buy the axie
         const receipt = await buyAxie(order, provider, wallet)
-        // remove the market order from the orders array, to prevent it from being executed again
-        if (receipt !== false) {
-          console.log(receipt)
-          console.log('removing market order')
-          await removeMarketOrder(marketOrder.id)
+        // TODO: validate if tx was successful
+        console.log(receipt)
+        if (receipt === false) {
+          // add the order back to the orders array
+          await addMarketOrder(marketOrder)
         }
       }
     }

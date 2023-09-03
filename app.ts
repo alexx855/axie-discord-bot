@@ -17,8 +17,7 @@ import { randomUUID } from 'crypto'
 import { MarketPropsInterface, IMarketOrder, IDiscordEmbed } from './src/interfaces'
 import { getRedisMarketOrders, setMarketOrders, addMarketOrder } from './src/market'
 import { VerifyDiscordRequest } from './src/utils'
-import discordOrdersTicker from './src/onblock/discordOrdersTicker'
-// import marketRecentListingsTicker from './src/onblock/marketRecentListingsTicker'
+import discordOrdersTicker from './src/discordOrdersTicker'
 import { batchTransferAxies, getAxieContract, getAxieIdsFromAccount, getUSDCContract, getWETHContract } from 'axie-ronin-ethers-js-tools'
 import { getAxieEmbed } from './src/axies'
 import path from 'node:path'
@@ -396,7 +395,7 @@ app.post('/interactions', async (req, res) => {
   }
 })
 
-app.listen(3000, () => {
+app.listen(process.env.PORT ?? 3000, () => {
   if (process.env.DISCORD_CLIENT_ID === undefined || process.env.DISCORD_GUILD_ID === undefined) {
     console.log('Missing env vars, exiting...')
     process.exit(1)
@@ -404,7 +403,7 @@ app.listen(3000, () => {
 
   let time = Date.now()
   // Subscribe to new blocks
-  setInterval(() => {
+  provider.on('block', async (blockNumber) => {
     const diff = Date.now() - time
     time = Date.now()
 
@@ -417,16 +416,11 @@ app.listen(3000, () => {
     // track time
     const sTime = Date.now()
 
-    // // get recent listings, scrape for floor price axies
-    // marketRecentListingsTicker(provider, wallet)
-    //   .catch((error) => console.log(error))
-    //   .finally(() => console.log('\x1b[36m%s\x1b[0m', `marketRecentListingsTicker finished after ${Date.now() - sTime}ms`))
-
     // check for the discord created orders by criteria
     discordOrdersTicker(provider, wallet)
       .catch((error) => console.log(error))
       .finally(() => console.log('\x1b[36m%s\x1b[0m', `discordOrdersTicker finished after ${Date.now() - sTime}ms`))
-  }, 10000)
+  })
 })
 
 app.get('/', (req, res) => {
