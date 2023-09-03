@@ -70,7 +70,7 @@ NODE_DEV="dev" docker compose up
 --- | ---
 ![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png) | ![/get_orders](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)
 --- | ---
-![tx](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Tx.png) | ![/transfer_all](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_TransferAll.png.png)
+![tx](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Tx.png) | ![/transfer_all](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_TransferAll.png)
 
 #### Contributing
 
