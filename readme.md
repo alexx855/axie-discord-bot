@@ -47,7 +47,8 @@ An order is a set of filters that will be used to buy axies from the marketplace
 - */add_order* - Create a order that will automatically trigger based on the given price and the marketplace url filters
 - */get_orders* - Get open orders
 - */remove_order $ORDER_ID* - Remove order by ID
-- */account* - Get bot wallet account info
+- */ronin_wallet* - Get bot wallet account info
+- */transfer_all_axies $ADDRESS* - Transfer all axies to the given address
 
 ### Development
 
@@ -67,9 +68,9 @@ NODE_DEV="dev" docker compose up
 
 ![/axie](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png) | ![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_CreateOrder.png)
 --- | ---
-![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png) | ![Image 4](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)
+![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png) | ![/get_orders](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)
 --- | ---
-![example](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Tx.png) |
+![tx](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Tx.png) | ![/transfer_all](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_TransferAll.png.png)
 
 #### Contributing
 
