@@ -403,13 +403,13 @@ app.listen(process.env.PORT ?? 3000, () => {
 
   let time = Date.now()
   // Subscribe to new blocks
-  provider.on('block', async (blockNumber) => {
+  provider.on('block', () => {
     const diff = Date.now() - time
     time = Date.now()
 
     // Not sure why some blocks came at the same time, but we don't want to process them together
     if (diff < 100) {
-      return
+      return false
     }
 
     console.log('\x1b[33m%s\x1b[0m', `new worker received after ${diff}ms`)
