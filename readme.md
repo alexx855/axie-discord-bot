@@ -35,9 +35,7 @@ Configure your discord bot to use the deployed app url + /interactions as the in
 
 ### Commands available
 
-An order is an object, with a set filters that will be used to buy axies
-
-<!-- - */axie_info $AXIE_ID* - Get axie info -->
+- */axie_info $AXIE_ID* - Get axie info
 - */wallet* - Get bot wallet account info (ronin address, balance, etc)
 - */axie_buy $AXIE_ID* - Buy the given axie
 - */axie_sale $AXIE_ID $PRICE* - Create a sale order for the given axie
