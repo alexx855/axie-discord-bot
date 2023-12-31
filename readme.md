@@ -1,21 +1,8 @@
-# Axie Infinity Discord Bot
+# Axie Marketplace Sniper Discord Bot
 
-This bot can buy Axies from the marketplace based on the given criteria, it uses your private key to sign the transaction, so you will need to run it on your own machine or a server that you control, never share your private key with anyone.
+A Discord bot to mange Axies. It uses a private key to sign transactions, so it can be used to buy, sell, transfer axies, etc.
 
-## This bot is meant to be self hosted
-
-You can use it as a reference to build your own bot
-
-### Self host setup
-
-Create and fill your custom .env with your discord client id and discord bot token
-
-Fetching credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
-
-```bash
-cp .env.example .env
-code .env
-```
+## Tutorial
 
 Install dependencies
 
@@ -26,55 +13,57 @@ npm install
 Install discord commands
 
 ```bash
-npm run install-discord-commands
+npm run install-commands
 
 ```
 
-Start the bot with docker compose
+Complete your environment variables
 
 ```bash
-docker compose up
+cp .env.example .env
 ```
 
-You will need to expose teh express server to the internet and configure the discord app to use that url for the interactions <https://discord.com/developers/docs/intro>
-You could use <https://doc.traefik.io/traefik/> for example, to create a proxy that expose your self hosted bot to the internet, i have an example of a docker compose file that doest that here: <https://github.com/alexx855/traefik-proxy-home>
+Fetching discord credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
 
-### Commands available in discord
-
-An order is a set of filters that will be used to buy axies from the marketplace as soon as they are listed
-
-- */axie $AXIE_ID* - Get axie info by ID
-- */add_order* - Create a order that will automatically trigger based on the given price and the marketplace url filters
-- */get_orders* - Get open orders
-- */remove_order $ORDER_ID* - Remove order by ID
-- */ronin_wallet* - Get bot wallet account info
-- */transfer_all_axies $ADDRESS* - Transfer all axies to the given address
-
-### Development
-
-Install dependencies
+Deploy to vercel
 
 ```bash
-npm install
+vercel --prod
 ```
 
-Start the bot in development mode
+Configure your discord bot to use the deployed app url + /interactions as the interaction endpoint in the discord developer portal.
 
-```bash
-NODE_DEV="dev" docker compose up
-```
+### Commands available
 
-#### Screenshots
+An order is an object, with a set filters that will be used to buy axies
 
-![/axie](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Axie.png) | ![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_CreateOrder.png)
+<!-- - */axie_info $AXIE_ID* - Get axie info -->
+- */wallet* - Get bot wallet account info (ronin address, balance, etc)
+- */axie_buy $AXIE_ID* - Buy the given axie
+- */axie_sale $AXIE_ID $PRICE* - Create a sale order for the given axie
+- */axie_sale_all $PRICE* - Create a sale order for all axies
+- */axie_cancel_sale $AXIE_ID* - Cancel sale order for the given axie
+- */axie_cancel_sale_all* - Cancel all sale orders
+- */axie_transfer $AXIE_ID $ADDRESS* - Transfer axie to  the given address
+- */axie_transfer_all $ADDRESS* - Transfer all axies to the given address
+
+<!-- #### Screenshots
+
+![/wallet](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/wallet.png) | ![/axie_info](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_info.png)
 --- | ---
-![/add_order](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Modal.png) | ![/get_orders](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Orders.png)
+![/axie_buy](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_buy.png) | ![/axie_sale](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_sale.png)
 --- | ---
-![tx](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_Tx.png) | ![/transfer_all](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/screenshots/Screenshot_TransferAll.png)
+![axie_transfer](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/Screenshot_Tx.png) | ![/axie_transfer](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/Screenshot_TransferAll.png) -->
 
 #### Contributing
 
-Feel free to contribute with PRs and issues
+Feel free to contribute to this project. Any help is appreciated!
+
+#### TODO
+
+- [ ] Add Screenshots
+- [ ] Add axie info command, with floor price, rarity, etc
+- [ ] Add web3auth-backend to generate wallets for users instead of using a single PK
 
 #### License
 

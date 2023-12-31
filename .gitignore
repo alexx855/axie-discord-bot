@@ -1,8 +1,5 @@
 .env
+.env.development.local
 node_modules/
-data-postgres/
-data-redis/
-cache/
-artifacts/
-# test/
-# contracts/
+dist/
+.vercel

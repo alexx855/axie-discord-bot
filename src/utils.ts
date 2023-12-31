@@ -1,20 +1,7 @@
 import { verifyKey } from 'discord-interactions'
-import { ethers } from 'ethers'
-import { createClient } from 'redis'
 import { GRAPHQL_URL } from './constants'
-import * as dotenv from 'dotenv'
-dotenv.config()
 
-// redis client
-export const createRedisClient = () => createClient({
-  socket: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: 6379,
-  },
-  password: process.env.REDIS_PASSWORD ?? 'password'
-}).on('error', (err) => console.log('Redis Error', err))
-
-export function VerifyDiscordRequest(clientKey: string) {
+export function VerifyDiscordRequest (clientKey: string) {
   return function (req: any, res: any, buf: any, encoding: any) {
     const signature = req.get('X-Signature-Ed25519')
     const timestamp = req.get('X-Signature-Timestamp')
@@ -27,10 +14,9 @@ export function VerifyDiscordRequest(clientKey: string) {
   }
 }
 
-export async function DiscordRequest(endpoint: string, options: any): Promise<Response> {
+export async function discordRequest (endpoint: string, options: any): Promise<Response> {
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
-  // Stringify payloads
   // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (options?.body) options.body = JSON.stringify(options.body)
 
@@ -51,23 +37,40 @@ export async function DiscordRequest(endpoint: string, options: any): Promise<Re
   // handle API errors
   if (!res.ok) {
     const data = await res.json()
-    // throw new Error(JSON.stringify(data))
     console.error(data)
   }
   // return original response
   return res
 }
 
-export function capitalize(str: string): string {
+export async function apiRequest<T> (
+  url: string,
+  body: BodyInit | null = null,
+  headers: Record<string, string> = {},
+  method: 'GET' | 'POST' = 'POST'
+) {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers
+    },
+    ...(method === 'GET' ? {} : { body })
+  })
+
+  const res: T = await response.json()
+  return res
+}
+
+export function capitalize (str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export async function fetchAxieQuery<T>(query: string, variables: { [key: string]: any }, headers?: { [key: string]: any }) {
+export async function fetchAxieQuery<T> (query: string, variables: { [key: string]: any }, headers?: { [key: string]: string }, method = 'POST') {
   const response = await fetch(GRAPHQL_URL, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
-      // 'x-api-key': process.env.SKIMAVIS_DAPP_KEY as string,
       ...headers
     },
     body: JSON.stringify({ query, variables })
@@ -77,28 +80,77 @@ export async function fetchAxieQuery<T>(query: string, variables: { [key: string
   return res
 }
 
-export const ethToWei = (eth: number) => ethers.utils.parseEther(eth.toString())
-
-export async function InstallGuildCommands(appId: string, guildId: string, commands: any[]) {
+export async function InstallGuildCommands (appId: string, guildId: string, commands: any[]) {
   // API endpoint to overwrite guild commands
   const endpoint = `applications/${appId}/guilds/${guildId}/commands`
 
   try {
     // This is calling the bulk overwrite endpoint: https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
-    await DiscordRequest(endpoint, { method: 'PUT', body: commands })
+    const request = await discordRequest(endpoint, { method: 'PUT', body: commands })
+    console.log(request)
   } catch (err) {
     console.error(err)
   }
 }
 
-export async function InstallGlobalCommands(appId: string, commands: any[]) {
+export async function InstallGlobalCommands (appId: string, commands: any[]) {
   // API endpoint to overwrite global commands
   const endpoint = `applications/${appId}/commands`
 
   try {
     // This is calling the bulk overwrite endpoint: https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
-    await DiscordRequest(endpoint, { method: 'PUT', body: commands })
+    const request = await discordRequest(endpoint, { method: 'PUT', body: commands })
+    console.log(request)
   } catch (err) {
     console.error(err)
   }
+}
+
+// Deletes all bot commands
+export async function DeleteCommands () {
+  if (process.env.DISCORD_CLIENT_ID === undefined || process.env.DISCORD_GUILD_ID === undefined) {
+    throw new Error('Missing environment variables')
+  }
+  // Commands can be deleted and updated by making DELETE and PATCH calls to the command endpoint. Those endpoints are
+
+  // applications/<my_application_id>/commands/<command_id> for global commands, or
+  // applications/<my_application_id>/guilds/<guild_id>/commands/<command_id> for guild commands
+  // Because commands have unique names within a type and scope, we treat POST requests for new commands as upserts. That means making a new command with an already-used name for your application will update the existing command.
+
+  const commands = await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/commands`, { method: 'GET' })
+  // const commands = await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/guilds/${process.env.DISCORD_GUILD_ID}/commands`, { method: 'GET' })
+  const data = await commands.json()
+  for (const command of data) {
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    console.log(`Deleting command ${command.name} with id ${command.id}`)
+
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    // await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/guilds/${process.env.DISCORD_GUILD_ID}/commands/${command.id}`, { method: 'DELETE' })
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/commands/${command.id}`, { method: 'DELETE' })
+
+    // wait 4 seconds to avoid rate limit
+    await new Promise(resolve => setTimeout(resolve, 4000))
+  }
+}
+
+export function roninAddress (address: `0x${string}`) {
+  return address.replace('0x', 'ronin:').toLocaleLowerCase()
+}
+
+export function roninAddressToHex (address: string) {
+  return address.replace('ronin:', '0x') as `0x${string}`
+}
+
+export function editMessage (channelId: string, messageId: string, content: string, components: any[] = []) {
+  const endpoint = `channels/${channelId}/messages/${messageId}`
+
+  void discordRequest(endpoint, {
+    method: 'PATCH',
+    body:
+    {
+      content,
+      components
+    }
+  })
 }

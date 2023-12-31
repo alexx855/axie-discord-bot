@@ -1,11 +1,11 @@
 
 export interface IMarketOrder {
   id: string
-  userId: string
-  marketProps: MarketPropsInterface
   marketUrl: string
   triggerPrice: string
   floorPrice?: string
+  totalOnSale?: number
+  totalExistence?: number
 }
 
 // todo: complete interface
@@ -35,7 +35,7 @@ export interface ICriteria {
   pureness?: number[]
 }
 
-export interface MarketPropsInterface extends ICriteria {
+export interface IMarketProps extends ICriteria {
   excludeParts?: string[]
   // [key: string]: any
 }
@@ -50,7 +50,7 @@ export interface IDiscordEmbed {
   color?: number
 }
 
-export interface IScalpedAxie {
+export interface IMarketAsset {
   axieId: string
   class: string
   parts: Array<{
@@ -60,12 +60,11 @@ export interface IScalpedAxie {
     type: string
   }>
   currentPrice: string
-  floorPrice: string
-  profit: string
+  resellEstProfit: string
   breedCount: number
+  floorPrice: string
   totalOnSale: number
-  totalAxies: number
-  estimatedPercentage: number
+  totalExistence: number
   rarity: 'Common' | 'Rare' | 'Epic' | 'Unique'
   pureness: number
   lastSoldPrice?: string
