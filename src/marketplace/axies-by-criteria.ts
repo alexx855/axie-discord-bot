@@ -1,4 +1,4 @@
-import { IAsset, ICriteria } from '../interfaces'
+import { type IAsset, type ICriteria } from '../interfaces'
 import { fetchAxieQuery } from '../utils'
 
 export async function fetchMarketplaceAxiesByCriteria (

@@ -17,19 +17,19 @@ export function VerifyDiscordRequest (clientKey: string) {
 export async function discordRequest (endpoint: string, options: any): Promise<Response> {
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
-  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (options?.body) options.body = JSON.stringify(options.body)
 
-  if (process.env.DISCORD_TOKEN === undefined) {
+  const token = process.env.DISCORD_TOKEN
+  if (token === undefined) {
     throw new Error('Discord token is undefined')
   }
 
   // Use node-fetch to make requests
   const res = await fetch(url, {
     headers: {
-      Authorization: `Bot ${process.env.DISCORD_TOKEN}`,
+      Authorization: `Bot ${token}`,
       'Content-Type': 'application/json; charset=UTF-8',
-      'User-Agent': 'AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, 1.1.0)'
+      'User-Agent': `AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, ${process.env.npm_package_version})`
     },
     ...options
   })
@@ -66,7 +66,7 @@ export function capitalize (str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export async function fetchAxieQuery<T> (query: string, variables: { [key: string]: any }, headers?: { [key: string]: string }, method = 'POST') {
+export async function fetchAxieQuery<T> (query: string, variables: Record<string, any>, headers?: Record<string, string>, method = 'POST') {
   const response = await fetch(GRAPHQL_URL, {
     method,
     headers: {

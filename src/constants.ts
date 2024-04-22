@@ -160,6 +160,12 @@ export const TRANSFER_AXIE_ALL_COMMAND = {
   type: 1
 }
 
+export const PING_COMMAND = {
+  name: 'ping',
+  description: 'Ping the bot',
+  type: 1
+}
+
 export const WALLET_COMMAND = {
   name: 'wallet',
   description: 'Get bot ronin WALLET details',

@@ -1,6 +1,5 @@
-
 import { fetchAxieQuery } from '../utils'
-import { IAsset } from '../interfaces'
+import { type IAsset } from '../interfaces'
 
 export async function fetchMarketRecentAxieListings (variables = {
   from: 0,

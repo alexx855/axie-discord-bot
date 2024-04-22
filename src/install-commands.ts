@@ -7,7 +7,8 @@ import {
   CANCEL_AXIE_SALE_ALL_COMMAND,
   BUY_AXIE_COMMAND,
   CREATE_AXIE_SALE_COMMAND,
-  AXIE_INFO_COMMAND
+  AXIE_INFO_COMMAND,
+  PING_COMMAND
 } from './constants'
 import { DeleteCommands, InstallGlobalCommands, InstallGuildCommands } from './utils'
 
@@ -19,6 +20,7 @@ const main = async () => {
   // await DeleteCommands()
   // InstallGuildCommands(process.env.DISCORD_CLIENT_ID, process.env.DISCORD_GUILD_ID, [
   InstallGlobalCommands(process.env.DISCORD_CLIENT_ID, [
+    PING_COMMAND,
     WALLET_COMMAND,
     CREATE_AXIE_SALE_COMMAND,
     CREATE_AXIE_SALE_ALL_COMMAND,

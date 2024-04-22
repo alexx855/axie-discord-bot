@@ -1,56 +1,48 @@
 import { InteractionResponseType } from 'discord-interactions'
-import { RONIN_CHAIN, OPEN_EXPLORER_APP_LABEL, AUTH_LOGIN_URL, AUTH_NONCE_URL, AUTH_TOKEN_REFRESH_URL, GRAPHQL_URL } from '../constants'
+import { RONIN_CHAIN, OPEN_EXPLORER_APP_LABEL, AUTH_NONCE_URL, GRAPHQL_URL } from '../constants'
 import { getAxieMarketplaceOrder } from '../marketplace/axie-order'
-import { isHex, encodeFunctionData, createWalletClient, http, createPublicClient, parseEther, WalletClient, PublicClient, encodeAbiParameters, parseAbiParameters } from 'viem'
+import { isHex, createWalletClient, http, createPublicClient, parseEther, type WalletClient, type PublicClient, encodeAbiParameters, parseAbiParameters, encodeFunctionData, type Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { apiRequest, roninAddress } from '../../src/utils'
-import { APP_AXIE_ORDER_EXCHANGE, AXIE_PROXY, MARKETPLACE_GATEWAY_V2, MARKET_GATEWAY, WRAPPED_ETHER } from '@roninbuilders/contracts'
+import { apiRequest } from '../../src/utils'
+import { APP_AXIE_ORDER_EXCHANGE, AXIE_PROXY, MARKETPLACE_GATEWAY_V2, MARKET_GATEWAY, ORDER_EXCHANGE_LOGIC, WRAPPED_ETHER } from '@roninbuilders/contracts'
 import { getAxieIdsFromAddress } from '../axies'
 
-export const checkAndApproveAllowance = async (publicClient: PublicClient, walletClient: WalletClient) => {
-  if (walletClient.account === undefined) {
-    throw new Error('Wallet client account not set')
-  }
+// Create the order
+const types = {
+  Asset: [
+    { name: 'erc', type: 'uint8' },
+    { name: 'addr', type: 'address' },
+    { name: 'id', type: 'uint256' },
+    { name: 'quantity', type: 'uint256' }
+  ],
+  Order: [
+    { name: 'maker', type: 'address' },
+    { name: 'kind', type: 'uint8' },
+    { name: 'assets', type: 'Asset[]' },
+    { name: 'expiredAt', type: 'uint256' },
+    { name: 'paymentToken', type: 'address' },
+    { name: 'startedAt', type: 'uint256' },
+    { name: 'basePrice', type: 'uint256' },
+    { name: 'endedAt', type: 'uint256' },
+    { name: 'endedPrice', type: 'uint256' },
+    { name: 'expectedState', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'marketFeePercentage', type: 'uint256' }
+  ],
+  EIP712Domain: [
+    { name: 'name', type: 'string' },
+    { name: 'version', type: 'string' },
+    { name: 'chainId', type: 'uint256' },
+    { name: 'verifyingContract', type: 'address' }
+  ]
+} as const
 
-  const address = walletClient.account.address
-
-  // check if the marketplace contract has enough WETH allowance
-  const allowance = await publicClient.readContract({
-    address: WRAPPED_ETHER.address,
-    abi: WRAPPED_ETHER.abi,
-    functionName: 'allowance',
-    args: [address, MARKETPLACE_GATEWAY_V2.address]
-  }) as boolean
-
-  // msg.sender has to call setApprovalForAll on _tokenContract to authorize this contract.
-  const approvalReceiptTotalCost: bigint = 0n
-  let approvalTxHash: `0x${string}` | null = null
-  if (!allowance) {
-    // Need approve the marketplace contract to transfer WETH, no allowance
-    const amountToapprove = '115792089237316195423570985008687907853269984665640564039457584007913129639935' // same amount as the ronin wallet uses, i got it from there
-    const { request: approvalRequest } = await publicClient.simulateContract({
-      account: walletClient.account,
-      address: WRAPPED_ETHER.address,
-      abi: WRAPPED_ETHER.abi,
-      functionName: 'approve',
-      args: [MARKETPLACE_GATEWAY_V2.address, amountToapprove]
-    })
-
-    approvalTxHash = await walletClient.writeContract(approvalRequest)
-    const approvalReceipt = await publicClient.waitForTransactionReceipt(
-      {
-        confirmations: 2,
-        hash: approvalTxHash,
-        onReplaced: replacement => console.log(replacement),
-        pollingInterval: 1_000,
-        timeout: 30_000
-      }
-    )
-    const approvalReceiptTotalCost = approvalReceipt.gasUsed * approvalReceipt.effectiveGasPrice
-    console.log(`Approval receipt total cost: ${approvalReceiptTotalCost}`)
-  }
-  return { allowance, approvalTxHash, approvalReceiptTotalCost }
-}
+const domain = {
+  name: 'MarketGateway',
+  version: '1',
+  chainId: BigInt(2020),
+  verifyingContract: MARKETPLACE_GATEWAY_V2.address
+} as const
 
 export const checkAndApproveMarketplace = async (publicClient: PublicClient, walletClient: WalletClient) => {
   if (walletClient.account === undefined) {
@@ -58,58 +50,65 @@ export const checkAndApproveMarketplace = async (publicClient: PublicClient, wal
   }
 
   const address = walletClient.account.address
+  console.log(`Checking and approving marketplace for ${address}`)
+  return new Error('Not implemented')
 
-  // check if the marketplace contract has enough WETH allowance
-  const allowance = await publicClient.readContract({
-    address: WRAPPED_ETHER.address,
-    abi: WRAPPED_ETHER.abi,
-    functionName: 'allowance',
-    args: [address, MARKETPLACE_GATEWAY_V2.address]
-  }) as boolean
+  // // check if the marketplace contract has enough WETH allowance
+  // const allowance = await publicClient.readContract({
+  //   address: WRAPPED_ETHER.address,
+  //   abi: WRAPPED_ETHER.abi,
+  //   functionName: 'allowance',
+  //   args: [address, MARKETPLACE_GATEWAY_V2.address]
+  // })
 
-  // msg.sender has to call setApprovalForAll on _tokenContract to authorize this contract.
-  const approvalReceiptTotalCost: bigint = 0n
-  let approvalTxHash: `0x${string}` | null = null
-  if (!allowance) {
-    // Need approve the marketplace contract to transfer WETH, no allowance
-    const amountToapprove = '115792089237316195423570985008687907853269984665640564039457584007913129639935' // same amount as the ronin wallet uses, i got it from there
-    const { request: approvalRequest } = await publicClient.simulateContract({
-      account: walletClient.account,
-      address: WRAPPED_ETHER.address,
-      abi: WRAPPED_ETHER.abi,
-      functionName: 'approve',
-      args: [MARKETPLACE_GATEWAY_V2.address, amountToapprove]
-    })
+  // // msg.sender has to call setApprovalForAll on _tokenContract to authorize this contract.
+  // const approvalReceiptTotalCost: bigint = 0n
+  // let approvalTxHash: `0x${string}` | null = null
+  // if (allowance === 0n) {
+  //   // Need approve the marketplace contract to transfer WETH, no allowance
+  //   const amountToapprove = BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935') // same amount as the ronin wallet uses, i got it from there
+  //   const { request: approvalRequest } = await publicClient.simulateContract({
+  //     account: walletClient.account,
+  //     address: WRAPPED_ETHER.address,
+  //     abi: WRAPPED_ETHER.abi,
+  //     functionName: 'approve',
+  //     args: [MARKETPLACE_GATEWAY_V2.address, amountToapprove]
+  //   })
 
-    approvalTxHash = await walletClient.writeContract(approvalRequest)
-    const approvalReceipt = await publicClient.waitForTransactionReceipt(
-      {
-        confirmations: 2,
-        hash: approvalTxHash,
-        onReplaced: replacement => console.log(replacement),
-        pollingInterval: 1_000,
-        timeout: 30_000
-      }
-    )
-    const approvalReceiptTotalCost = approvalReceipt.gasUsed * approvalReceipt.effectiveGasPrice
-    console.log(`Approval receipt total cost: ${approvalReceiptTotalCost}`)
-  }
-  return { allowance, approvalTxHash, approvalReceiptTotalCost }
+  //   approvalTxHash = await walletClient.writeContract(approvalRequest)
+  //   const approvalReceipt = await publicClient.waitForTransactionReceipt(
+  //     {
+  //       confirmations: 2,
+  //       hash: approvalTxHash,
+  //       onReplaced: (replacement) => {
+  //         console.log(replacement)
+  //       },
+  //       pollingInterval: 1_000,
+  //       timeout: 30_000
+  //     }
+  //   )
+  //   const approvalReceiptTotalCost = approvalReceipt.gasUsed * approvalReceipt.effectiveGasPrice
+  //   console.log(`Approval receipt total cost: ${approvalReceiptTotalCost}`)
+  // }
+  // return { allowance, approvalTxHash, approvalReceiptTotalCost }
 }
 
 export const sellAxieCommandHandler = async (
-  axieId: string,
+  axieId: bigint,
   basePrice: string,
-  endedPrice: string = '0',
-  duration: number = 30 // Duration in days
+  endedPrice = '0',
+  duration = 30 // Duration in days
 ) => {
   console.log(`Sell axie ${axieId} for ${basePrice} ETH with an end price of ${endedPrice} ETH and a duration of ${duration !== undefined ? duration.toString() + ' days' : '6 months'} `)
   if (process.env.PRIVATE_KEY === undefined || !isHex(process.env.PRIVATE_KEY)) {
     throw new Error('Private key not valid, check .env file, should start with 0x')
   }
+  if (isNaN(duration)) {
+    throw new Error('Duration is not a number')
+  }
   try {
     // Get order from marketplace
-    const order = await getAxieMarketplaceOrder(axieId)
+    const order = await getAxieMarketplaceOrder(axieId.toString())
     if (order === undefined) {
       return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -142,85 +141,6 @@ export const sellAxieCommandHandler = async (
 
     // ~ 6 months max listing duration
     const expiredAt = startedAt + 15634800
-
-    // Create the order
-    const types = {
-      Asset: [
-        {
-          name: 'erc',
-          type: 'uint8'
-        },
-        {
-          name: 'addr',
-          type: 'address'
-        },
-        {
-          name: 'id',
-          type: 'uint256'
-        },
-        {
-          name: 'quantity',
-          type: 'uint256'
-        }
-      ],
-      Order: [
-        {
-          name: 'maker',
-          type: 'address'
-        },
-        {
-          name: 'kind',
-          type: 'uint8'
-        },
-        {
-          name: 'assets',
-          type: 'Asset[]'
-        },
-        {
-          name: 'expiredAt',
-          type: 'uint256'
-        },
-        {
-          name: 'paymentToken',
-          type: 'address'
-        },
-        {
-          name: 'startedAt',
-          type: 'uint256'
-        },
-        {
-          name: 'basePrice',
-          type: 'uint256'
-        },
-        {
-          name: 'endedAt',
-          type: 'uint256'
-        },
-        {
-          name: 'endedPrice',
-          type: 'uint256'
-        },
-        {
-          name: 'expectedState',
-          type: 'uint256'
-        },
-        {
-          name: 'nonce',
-          type: 'uint256'
-        },
-        {
-          name: 'marketFeePercentage',
-          type: 'uint256'
-        }
-      ]
-    } as const
-
-    const domain = {
-      name: 'MarketGateway',
-      version: '1',
-      chainId: 2020,
-      verifyingContract: MARKETPLACE_GATEWAY_V2.address
-    } as const
 
     const message = {
       maker: address,
@@ -313,19 +233,32 @@ export const sellAxieCommandHandler = async (
       signature
     }
 
-    console.log('variables:', variables.order)
+    // console.log('variables:', variables.order)
 
-    // Exchange the signature for an access token
-    const accessTokenMessage = await generateAccessTokenMessage(address)
-    const accessTokenSignature = await walletClient.signMessage({
-      account,
-      message: accessTokenMessage
-    })
-    const { accessToken } = await exchangeToken(accessTokenSignature, accessTokenMessage)
-
+    // // Exchange the signature for an access token
+    // const accessTokenMessage = await generateAccessTokenMessage(address)
+    // const accessTokenSignature = await walletClient.signMessage({
+    //   account,
+    //   message: accessTokenMessage
+    // })
+    // const exchangeTokenResponse = await exchangeToken(accessTokenSignature, accessTokenMessage)
+    // if (!exchangeTokenResponse?.accessToken) {
+    //   return {
+    //     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    //     data: {
+    //       embeds: [{
+    //         title: 'Error creating sale',
+    //         description: 'Error exchanging signature for access token',
+    //         color: 0xff0000 // Red color
+    //       }]
+    //     }
+    //   }
+    // }
+    // const { accessToken } = exchangeTokenResponse
+    const accessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjFlZGRjM2I3LTgxZjQtNmM1Ni05MzVhLTU1OTQzNzQ1ZWI3NiIsInNpZCI6MTY2MzcxMjI1LCJyb2xlcyI6WyJ1c2VyIl0sInNjcCI6WyJhbGwiXSwiYWN0aXZhdGVkIjp0cnVlLCJhY3QiOnRydWUsInJvbmluQWRkcmVzcyI6IjB4YTYxMjUxMDc2MzFhOTE0MTQxMjliN2FkNTkyNGEyMTZjZmJjM2UxZSIsImV4cCI6MTcxMTY1NzU1MiwiaWF0IjoxNzEwNDQ3OTUyLCJpc3MiOiJBeGllSW5maW5pdHkiLCJzdWIiOiIxZWRkYzNiNy04MWY0LTZjNTYtOTM1YS01NTk0Mzc0NWViNzYifQ.lL0xbtx_U6mEuyZIz_KSnqS8QJOOKXRWf2BOO1_svrs'
     const headers = {
       authorization: `Bearer ${accessToken}`
-      // 'x-api-key':  process.env.SKIMAVIS_DAPP_KEY
+      // 'x-api-key': process.env.SKIMAVIS_DAPP_KEY!
     }
 
     interface ICreateOrderResult {
@@ -341,6 +274,9 @@ export const sellAxieCommandHandler = async (
 
     const result = await apiRequest<ICreateOrderResult>(GRAPHQL_URL, JSON.stringify({ query, variables }), headers)
     console.log('result:', result)
+
+    // const result = await createOrder(order, signature)
+
     if (result.errors !== undefined) {
       return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -382,16 +318,14 @@ export const sellAxieCommandHandler = async (
   }
 }
 
-export const cancelSaleAxieCommandHandler = async (axieId: string) => {
-  console.log(`Cancel sale axie ${axieId}`)
-  // const txBuyAxie = await marketplaceContract.interactWith('ORDER_EXCHANGE', encodedOrderData)
+export const cancelSaleAxieCommandHandler = async (axieId: bigint) => {
   if (process.env.PRIVATE_KEY === undefined || !isHex(process.env.PRIVATE_KEY)) {
     throw new Error('Private key not valid, check .env file, should start with 0x')
   }
   try {
     // Get order from marketplace
-    const order = await getAxieMarketplaceOrder(axieId)
-    if (order === undefined) {
+    const order = await getAxieMarketplaceOrder(axieId.toString())
+    if (!order) {
       return {
         type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
         data: {
@@ -419,7 +353,6 @@ export const cancelSaleAxieCommandHandler = async (axieId: string) => {
     })
 
     // Recreate the order
-    const orderTypes = '(address maker, uint8 kind, (uint8 erc,address addr,uint256 id,uint256 quantity)[] assets, uint256 expiredAt, address paymentToken, uint256 startedAt, uint256 basePrice, uint256 endedAt, uint256 endedPrice, uint256 expectedState, uint256 nonce, uint256 marketFeePercentage)'
     const orderData = {
       maker: order.maker as `0x${string}`,
       kind: 1,
@@ -441,27 +374,31 @@ export const cancelSaleAxieCommandHandler = async (axieId: string) => {
       nonce: BigInt(order.nonce),
       marketFeePercentage: 425n
     }
+
+    // Assuming orderTypes and orderData are defined and orderData is an array
+    const orderTypes = '(address maker, uint8 kind, (uint8 erc,address addr,uint256 id,uint256 quantity)[] assets, uint256 expiredAt, address paymentToken, uint256 startedAt, uint256 basePrice, uint256 endedAt, uint256 endedPrice, uint256 expectedState, uint256 nonce, uint256 marketFeePercentage)'
+    // Encode the values
     const encodedOrderData = encodeAbiParameters(
       parseAbiParameters(orderTypes),
       [orderData]
     )
+    const abi: Abi = ORDER_EXCHANGE_LOGIC.abi
+    // const cancelOrderExchangeData = encodeFunctionData({
+    //   abi,
+    //   functionName: 'cancelOrder',
+    //   args: [encodedOrderData]
+    // })
 
-    const cancelOrderExchangeData = encodeFunctionData({
-      abi: APP_AXIE_ORDER_EXCHANGE.abi,
-      functionName: 'cancelOrder',
-      args: [encodedOrderData]
-    })
+    // const { request } = await publicClient.simulateContract({
+    //   account,
+    //   address: MARKETPLACE_GATEWAY_V2.address,
+    //   abi: MARKET_GATEWAY.abi,
+    //   functionName: 'interactWith',
+    //   args: ['ORDER_EXCHANGE', cancelOrderExchangeData]
+    // })
 
-    // marketplace order exchange
-    const { request } = await publicClient.simulateContract({
-      account,
-      address: MARKETPLACE_GATEWAY_V2.address,
-      abi: MARKET_GATEWAY.abi,
-      functionName: 'interactWith',
-      args: ['ORDER_EXCHANGE', cancelOrderExchangeData]
-    })
-
-    const txHash = await walletClient.writeContract(request)
+    // const txHash = await walletClient.writeContract(request)
+    const txHash = 'sd'
 
     // Send a message into the channel where command was triggered from
     return {
@@ -525,9 +462,9 @@ export const sellAllAxiesCommandHandler = async (basePrice: string, endedPrice?:
         // Sell all axies
         for (const axieId of axiesIds) {
           try {
-            await sellAxieCommandHandler(axieId.toString(), basePrice, endedPrice, duration)
+            await sellAxieCommandHandler(axieId, basePrice, endedPrice, duration)
           } catch (error) {
-            console.log(`Error listing axie ${axieId}`)
+            console.log(`Error listing axie ${axieId.toString()} for sale`)
           }
         }
       })
@@ -569,7 +506,6 @@ export const cancelAllAxieSalesCommandHandler = async () => {
 
   const account = privateKeyToAccount(process.env.PRIVATE_KEY)
   const { address } = account
-  console.log(`Cancel all axie sales from ${address}`)
 
   const publicClient = createPublicClient({
     chain: RONIN_CHAIN,
@@ -583,9 +519,9 @@ export const cancelAllAxieSalesCommandHandler = async () => {
         // Sell all axies
         for (const axieId of axiesIds) {
           try {
-            await cancelSaleAxieCommandHandler(axieId.toString())
+            await cancelSaleAxieCommandHandler(axieId)
           } catch (error) {
-            console.log(`Error cancelling axie ${axieId} sale`)
+            console.log(`Error cancelling axie ${axieId.toString()} sale`)
           }
         }
       })
@@ -599,7 +535,7 @@ export const cancelAllAxieSalesCommandHandler = async () => {
       data: {
         embeds: [
           {
-            title: `Cancelling all axie sales in ${roninAddress(address)}`
+            title: `Cancelling all axie sales in ${address}`
           }
         ]
       }
@@ -619,50 +555,55 @@ export const cancelAllAxieSalesCommandHandler = async () => {
   }
 }
 
-// Taken from https://github.com/SM-Trung-Le/temp-accessToken
-export const generateAccessTokenMessage = async (
-  address: string,
-  domain = 'discord.alexpedersen.dev',
-  uri = 'https://discord.alexpedersen.dev/interactions',
-  statement = 'I accept the Terms of Use (https://discord.alexpedersen.dev/terms-of-use) and the Privacy Policy (https://discord.alexpedersen.dev/privacy-policy)'
-) => {
-  const data = await exchangeNonce(address)
-  const message = `${domain} wants you to sign in with your Ronin account:\n${address.replace('0x', 'ronin:').toLowerCase()}\n\n${statement}\n\nURI: ${uri}\nVersion: 1\nChain ID: 2020\nNonce: ${data.nonce}\nIssued At: ${data.issued_at}\nExpiration Time: ${data.expiration_time}\nNot Before: ${data.not_before}`
-  /*
-        Example message:
-        app.axieinfinity.com wants you to sign in with your Ronin account: ronin:af9d50d8e6e19e3163583f293bb9b457cd28e8af I accept the Terms of Use (https://axieinfinity.com/terms-of-use) and the Privacy Policy (https://axieinfinity.com/privacy-policy) URI: https://app.axieinfinity.com Version: 1 Chain ID: 2020 Nonce: 13706446796901304963 Issued At: 2023-06-16T14:05:11Z Expiration Time: 2023-06-16T14:05:41Z Not Before: 2023-06-16T14:05:11Z
-    */
-  return message
-}
+// // Taken from https://github.com/SM-Trung-Le/temp-accessToken
+// export const generateAccessTokenMessage = async (
+//   address: string,
+//   domain = 'discord.alexpedersen.dev',
+//   uri = 'https://discord.alexpedersen.dev/interactions',
+//   statement = 'I accept the Terms of Use (https://discord.alexpedersen.dev/terms-of-use) and the Privacy Policy (https://discord.alexpedersen.dev/privacy-policy)'
+// ) => {
+//   const data = await exchangeNonce(address)
+//   const message = `${domain} wants you to sign in with your Ronin account:\n${address.replace('0x', 'ronin:').toLowerCase()}\n\n${statement}\n\nURI: ${uri}\nVersion: 1\nChain ID: 2020\nNonce: ${data.nonce}\nIssued At: ${data.issued_at}\nExpiration Time: ${data.expiration_time}\nNot Before: ${data.not_before}`
+//   /*
+//         Example message:
+//         app.axieinfinity.com wants you to sign in with your Ronin account: ronin:af9d50d8e6e19e3163583f293bb9b457cd28e8af I accept the Terms of Use (https://axieinfinity.com/terms-of-use) and the Privacy Policy (https://axieinfinity.com/privacy-policy) URI: https://app.axieinfinity.com Version: 1 Chain ID: 2020 Nonce: 13706446796901304963 Issued At: 2023-06-16T14:05:11Z Expiration Time: 2023-06-16T14:05:41Z Not Before: 2023-06-16T14:05:11Z
+//     */
+//   return message
+// }
 
-interface IAuthLoginResponse {
-  accessToken: string
-  accessTokenExpiresAt: string
-  accessTokenExpiresIn: number
-  refreshToken: string
-  userID: string
-  enabled_mfa: boolean
-}
+// interface IAuthLoginResponse {
+//   accessToken: string
+//   accessTokenExpiresAt: string
+//   accessTokenExpiresIn: number
+//   refreshToken: string
+//   userID: string
+//   enabled_mfa: boolean
+// }
 
-export const exchangeToken = async (signature: string, message: string) => {
-  const data = await apiRequest<IAuthLoginResponse>(AUTH_LOGIN_URL, JSON.stringify({ signature, message }))
-  return data
-}
+// export const exchangeToken = async (signature: string, message: string) => {
+//   try {
+//     const data = await apiRequest<IAuthLoginResponse>(AUTH_LOGIN_URL, JSON.stringify({ signature, message }))
+//     console.log('data:', data)
+//     return data
+//   } catch (error) {
+//     console.log('Error exchanging token:', error)
+//   }
+// }
 
-export const refreshToken = async (refreshToken: string) => {
-  const data = await apiRequest<IAuthLoginResponse>(AUTH_TOKEN_REFRESH_URL, JSON.stringify({ refreshToken }))
-  const newAccessToken = data.accessToken
-  const newRefreshToken = data.refreshToken
-  return { newAccessToken, newRefreshToken }
-}
+// export const refreshToken = async (refreshToken: string) => {
+//   const data = await apiRequest<IAuthLoginResponse>(AUTH_TOKEN_REFRESH_URL, JSON.stringify({ refreshToken }))
+//   const newAccessToken = data.accessToken
+//   const newRefreshToken = data.refreshToken
+//   return { newAccessToken, newRefreshToken }
+// }
 
-interface IAuthFetchNonceResponse {
-  nonce: string
-  issued_at: string
-  not_before: string
-  expiration_time: string
-}
+// interface IAuthFetchNonceResponse {
+//   nonce: string
+//   issued_at: string
+//   not_before: string
+//   expiration_time: string
+// }
 
-export const exchangeNonce = async (address: string) => {
-  return await apiRequest<IAuthFetchNonceResponse>(`${AUTH_NONCE_URL}?address=${address}`, null, {}, 'GET')
-}
+// export const exchangeNonce = async (address: string) => {
+//   return await apiRequest<IAuthFetchNonceResponse>(`${AUTH_NONCE_URL}?address=${address}`, null, {}, 'GET')
+// }

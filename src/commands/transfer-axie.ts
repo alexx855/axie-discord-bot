@@ -43,7 +43,7 @@ export const transferAxieCommandHandler = async (axieId: string, addressTo: `0x$
       address: AXIE_PROXY.address,
       abi: AXIE_PROXY.abi,
       functionName: 'transferFrom',
-      args: [address, addressTo, Number(axieId)]
+      args: [address, addressTo, BigInt(axieId)]
     })
 
     const txHash = await walletClient.writeContract(request)

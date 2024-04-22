@@ -1,6 +1,6 @@
-import { InteractionResponseType } from 'discord-interactions'
 import { OPEN_MARKETPLACE_APP_LABEL } from '../constants'
 import { getAxieEmbed } from '../axies'
+import { InteractionResponseType } from 'discord-interactions'
 
 export const infoAxieCommandHandler = async (axieId: string) => {
   if (process.env.SKIMAVIS_DAPP_KEY == null) {

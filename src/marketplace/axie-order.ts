@@ -1,4 +1,3 @@
-
 import { apiRequest } from '../utils'
 import { GRAPHQL_URL } from '../constants'
 
@@ -114,5 +113,5 @@ export async function getAxieMarketplaceOrder (axieId: string) {
 
   const results = await apiRequest<IGetAxieDetail>(GRAPHQL_URL, JSON.stringify({ query, variables }), headers)
   const order = results.data?.axie?.order
-  return order
+  return order || null
 }

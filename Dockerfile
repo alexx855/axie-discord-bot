@@ -1,25 +1,20 @@
-# [Choice] Node.js version (use -bullseye variants on local arm64/Apple Silicon): 18, 16, 14, 18-bullseye, 16-bullseye, 14-bullseye, 18-buster, 16-buster, 14-buster
-ARG VARIANT=18
-FROM mcr.microsoft.com/vscode/devcontainers/javascript-node:0-${VARIANT}
+# Use an official Node.js runtime as a parent image
+FROM node:20
 
-# [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
-
-# [Optional] Uncomment if you want to install an additional version of node using nvm
-# ARG EXTRA_NODE_VERSION=10
-# RUN su node -c "source /usr/local/share/nvm/nvm.sh && nvm install ${EXTRA_NODE_VERSION}"
-
-# [Optional] Uncomment if you want to install more global node modules
-# RUN su node -c "npm install -g <your-package-list-here>"
-
-RUN mkdir -p /workspace
-RUN chown node:node /workspace
-
-USER node
+# Set the working directory in the container to /workspace
 WORKDIR /workspace
+
+# Copy package.json and package-lock.json into the container
 COPY package*.json ./
+
+# Install any needed packages specified in package.json
 RUN npm ci
 
+# Copy the rest of your app's source code into the container
 COPY . .
+
+# Make port 3001 available to the world outside this container
+EXPOSE 3001
+
+# Run your app when the container launches
 CMD [ "npm", "start" ]

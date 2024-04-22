@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express'
+import express, { type Request, type Response } from 'express'
 import { VerifyDiscordRequest } from './utils'
 import { interactionsHandler } from './interactions-handler'
 
@@ -15,17 +15,20 @@ if (process.env.DISCORD_PUBLIC_KEY === undefined) {
 app.use(express.json({ verify: VerifyDiscordRequest(process.env.DISCORD_PUBLIC_KEY) }))
 
 app.get('/', (_req: Request, res: Response) => {
-  return res.send('alexx855.ron axie serverless discord bot with @vercel/node 🚀')
+  return res.send('alexx855.ron axie discord bot from @vercel/node 🚀')
 })
 
-/**
- * Interactions endpoint URL where Discord will send HTTP requests
- */
+app.get('/hello', (_req: Request, res: Response) => {
+  return res.send('Hello, World!')
+})
+
+// Interactions endpoint URL where Discord will send HTTP requests
 app.post('/interactions', (req: Request, res: Response) => {
   interactionsHandler(req, res).catch((err) => { console.error(err) })
 })
 
-const port = process.env.EXPRESS_PORT === undefined ? 3001 : process.env.EXPRESS_PORT
+// Start the server (only for development and testing)
+const port = process.env.EXPRESS_PORT ?? 3000
 app.listen(port, () => {
-  return console.log(`Server is listening on ${port}`)
+  console.log(`Server is listening on ${port}`)
 })

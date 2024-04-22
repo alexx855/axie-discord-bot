@@ -1,37 +1,49 @@
-# Axie Marketplace Sniper Discord Bot
+# Axie Infinity Marketplace Bot
 
-A Discord bot to mange Axies. It uses a private key to sign transactions, so it can be used to buy, sell, transfer axies, etc.
+This project provides a Discord bot that interacts with the Axie Infinity marketplace on the Ronin Network. The bot is capable of performing transactions using a private key. **Please exercise caution when deploying this bot, as it can execute transactions on behalf of the private key specified in the .env file.**
 
-## Tutorial
+## Prerequisites
 
-Install dependencies
+- Node.js 20.x
+- npm
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/alexx855/axie-discord-bot.git
+```
+
+2. Install dependencies:
 
 ```bash
 npm install
 ```
 
-Install discord commands
+3. Copy the .env.example file to .env and fill in the required values: 
+
+Complete your environment variables. Fetching discord credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
+
+
+```bash
+cp .env.example .env
+```
+
+4. Install discord commands
 
 ```bash
 npm run install-commands
 
 ```
 
-Complete your environment variables
-
-```bash
-cp .env.example .env
-```
-
-Fetching discord credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
-
-Deploy to vercel
+5. Deploy the bot to vercel
 
 ```bash
 vercel --prod
 ```
 
-Configure your discord bot to use the deployed app url + /interactions as the interaction endpoint in the discord developer portal.
+6. Configure your discord bot  **INTERACTIONS ENDPOINT URL** to use the deployed bot vercel url + /interactions. For example: **https://your-bot.vercel.app/interactions** in the discord developer portal. (https://discord.com/developers/applications/)
 
 ### Commands available
 
@@ -45,24 +57,6 @@ Configure your discord bot to use the deployed app url + /interactions as the in
 - */axie_transfer $AXIE_ID $ADDRESS* - Transfer axie to  the given address
 - */axie_transfer_all $ADDRESS* - Transfer all axies to the given address
 
-<!-- #### Screenshots
-
-![/wallet](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/wallet.png) | ![/axie_info](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_info.png)
---- | ---
-![/axie_buy](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_buy.png) | ![/axie_sale](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/axie_sale.png)
---- | ---
-![axie_transfer](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/Screenshot_Tx.png) | ![/axie_transfer](https://raw.githubusercontent.com/alexx855/axie-discord-bot/master/public/screenshots/Screenshot_TransferAll.png) -->
-
 #### Contributing
 
 Feel free to contribute to this project. Any help is appreciated!
-
-#### TODO
-
-- [ ] Add Screenshots
-- [ ] Add axie info command, with floor price, rarity, etc
-- [ ] Add web3auth-backend to generate wallets for users instead of using a single PK
-
-#### License
-
-[MIT]

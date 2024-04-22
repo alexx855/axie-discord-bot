@@ -1,4 +1,3 @@
-
 export interface IMarketOrder {
   id: string
   marketUrl: string
@@ -9,9 +8,7 @@ export interface IMarketOrder {
 }
 
 // todo: complete interface
-export interface IAsset {
-  [key: string]: any
-}
+export type IAsset = Record<string, any>
 
 export interface IMarketBuyOrder {
   id: string

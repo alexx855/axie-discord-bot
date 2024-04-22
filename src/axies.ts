@@ -1,5 +1,5 @@
-import { PublicClient, formatEther, parseEther } from 'viem'
-import { IAxieData, ICriteria, IDiscordEmbed } from './interfaces'
+import { type PublicClient, formatEther, parseEther } from 'viem'
+import { type IAxieData, type ICriteria, type IDiscordEmbed } from './interfaces'
 import { fetchAxieQuery } from './utils'
 
 import { AXIE_PROXY } from '@roninbuilders/contracts'
@@ -133,10 +133,10 @@ fragment AssetInfo on Asset {
 
   try {
     const res = await fetchAxieQuery<IAxieData>(query, variables)
-    if (res === null || res.data === undefined || res.data.axie === null) {
+    if (res?.data?.axie === null) {
       return false
     }
-    return res.data.axie
+    return res?.data?.axie
   } catch (err) {
     console.error(err)
   }
@@ -196,16 +196,13 @@ export async function getAxieEmbed (axieId: string, resume = false) {
   if (axie.order !== null) {
     const currentPrice = formatEther(parseEther(axie.order.currentPrice, 'wei'))
     content = content + `\n**On Sale:** Ξ${currentPrice} (${axie.order.currentPriceUsd} USD)`
-    content = content + `\nhttps://app.axieinfinity.com/marketplace/axies/${axie.id}`
   }
 
   if (!resume) {
     content = content + `\n\r**Parts:**\n${axie.parts.map((part) => `${part.type}: ${part.name} (${part.class})`).join('\n')}`
-    // content = content + `\n\r**Origin Stats:**\n`
     content = content + `\n\r**Stats:**\n${Object.keys(axie.stats).map((key: string) => `${key}: ${axie.stats[key as keyof typeof axie.stats]}`).join('\n')}`
     content = content + `\n\r**Potential:**\n${Object.keys(axie.potentialPoints).filter((key: string) => axie.potentialPoints[key as keyof typeof axie.potentialPoints] > 0).map((key: string) => `${key}: ${axie.potentialPoints[key as keyof typeof axie.potentialPoints]}`).join('\n')}`
-    content = content + `\n\r**Owner:** ${axie.ownerProfile?.name ?? 'Unknown'}`
-    // content = content + `\nhttps://explorer.roninchain.com/address/ronin:${axie.owner.slice(2)}`
+    content = content + `\n\r**Owner:** ${axie.owner}`
     // content = content + `\nhttps://app.axieinfinity.com/profile/ronin:${axie.owner.slice(2)}`
   }
 
@@ -292,7 +289,7 @@ export async function getAxieTransferHistory (axieId: string) {
   }
   const variables = { axieId, from: 0, size: 5 }
   const res = await fetchAxieQuery<IGetAxieTransferHistoryResponse>(query, variables)
-  return res === null || res.data.axie === undefined ? null : res.data.axie
+  return res?.data.axie === undefined ? null : res.data.axie
 }
 
 export async function getMinPriceAxie (axieId: string) {
@@ -307,11 +304,10 @@ export async function getMinPriceAxie (axieId: string) {
   }
   const variables = { axieId }
   const res = await fetchAxieQuery<IGetMinPriceAxieResponse>(query, variables)
-  return res === null || res.data.axie === undefined ? null : res.data.axie.minPrice
+  return res?.data.axie === undefined ? null : res.data.axie.minPrice
 }
 
 export async function getAxieIdsFromAddress (address: `0x${string}`, publicClient: PublicClient) {
-  // get axie contract
   const balance = await publicClient.readContract({
     address: AXIE_PROXY.address,
     abi: AXIE_PROXY.abi,
@@ -319,20 +315,16 @@ export async function getAxieIdsFromAddress (address: `0x${string}`, publicClien
     args: [address]
   })
 
-  // get axie ids
   const axieIds = []
-  for (let i = 0; i < Number(balance); i++) {
+  for (let i = 0; i < balance; i++) {
     const axieId = await publicClient.readContract({
       address: AXIE_PROXY.address,
       abi: AXIE_PROXY.abi,
       functionName: 'tokenOfOwnerByIndex',
-      args: [address, i]
+      args: [address, BigInt(i)]
     })
 
-    // convert to number
-    if (axieId !== null && axieId !== undefined) {
-      axieIds.push(Number(axieId))
-    }
+    axieIds.push(axieId)
   }
 
   return axieIds

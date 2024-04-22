@@ -4,6 +4,7 @@ import { isHex, createPublicClient, http, createWalletClient, formatEther, encod
 import { privateKeyToAccount } from 'viem/accounts'
 import { OPEN_EXPLORER_APP_LABEL, RONIN_CHAIN } from '../constants'
 import { getAxieMarketplaceOrder } from '../marketplace/axie-order'
+import { checkAndApproveMarketplace } from './marketplace'
 
 export const buyAxieCommandHandler = async (axieId: string) => {
   if (!isHex(process.env.PRIVATE_KEY)) {
@@ -16,7 +17,7 @@ export const buyAxieCommandHandler = async (axieId: string) => {
 
   const order = await getAxieMarketplaceOrder(axieId)
 
-  if (order === undefined) {
+  if (!order) {
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -45,11 +46,10 @@ export const buyAxieCommandHandler = async (axieId: string) => {
   })
 
   try {
-    // ?? move to a custom command, TODO: validate the error first
-    // await checkAndApproveAllowance(publicClient, walletClient)
+    // ?? move approve to a custom command
+    await checkAndApproveMarketplace(publicClient, walletClient)
 
     // Create the order
-    const orderTypes = '(address maker, uint8 kind, (uint8 erc,address addr,uint256 id,uint256 quantity)[] assets, uint256 expiredAt, address paymentToken, uint256 startedAt, uint256 basePrice, uint256 endedAt, uint256 endedPrice, uint256 expectedState, uint256 nonce, uint256 marketFeePercentage)'
     const orderData = {
       maker: order.maker as `0x${string}`,
       kind: 1,
@@ -71,23 +71,17 @@ export const buyAxieCommandHandler = async (axieId: string) => {
       nonce: BigInt(order.nonce),
       marketFeePercentage: 425n
     }
-    const encodedOrderData = encodeAbiParameters(
-      parseAbiParameters(orderTypes),
-      [orderData]
-    )
-    const settleInfo = {
-      orderData: encodedOrderData,
-      signature: order.signature,
-      referralAddr: '0xa7d8ca624656922c633732fa2f327f504678d132', // referralAddr => alexx855.ron please keep it to support me 🙏🏻 thanks
-      expectedState: BigInt(0),
-      recipient: address,
-      refunder: address
-    }
+
+    const referralAddr = '0xa7d8ca624656922c633732fa2f327f504678d132' // referralAddr => alexx855.ron please keep it to support me and keep the bot running and updated
+    const expectedState = BigInt(0)
+    const settlePrice = BigInt(order.currentPrice)
+
     const settledOrderExchangeData = encodeFunctionData({
       abi: APP_AXIE_ORDER_EXCHANGE.abi,
       functionName: 'settleOrder',
-      args: [settleInfo, BigInt(order.currentPrice)]
+      args: [orderData, order.signature as `0x${string}`, settlePrice, referralAddr, expectedState]
     })
+
     const { request } = await publicClient.simulateContract({
       account,
       address: MARKETPLACE_GATEWAY_V2.address,

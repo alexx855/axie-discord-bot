@@ -1,10 +1,10 @@
-
 import { RONIN_CHAIN } from '../constants'
 import { createPublicClient, formatEther, http, isHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { InteractionResponseType } from 'discord-interactions'
 import { roninAddress } from '../utils'
-import { AXIE_PROXY, WRAPPED_ETHER } from '@roninbuilders/contracts'
+import { WRAPPED_ETHER } from '@roninbuilders/contracts'
+import { getAxieIdsFromAddress } from '../axies'
 
 export const walletCommandHandler = async () => {
   if (process.env.PRIVATE_KEY === undefined || !isHex(process.env.PRIVATE_KEY)) {
@@ -29,15 +29,10 @@ export const walletCommandHandler = async () => {
     abi: WRAPPED_ETHER.abi,
     functionName: 'balanceOf',
     args: [address]
-  }) as bigint
+  })
 
   // get axies balance
-  const axiesBalance = await publicClient.readContract({
-    address: AXIE_PROXY.address,
-    abi: AXIE_PROXY.abi,
-    functionName: 'balanceOf',
-    args: [address]
-  }) as bigint
+  const axiesIdsList = await getAxieIdsFromAddress(address, publicClient)
 
   const marketplaceProfileUrl = `https://app.axieinfinity.com/profile/${roninAddress(address)}`
 
@@ -60,7 +55,7 @@ export const walletCommandHandler = async () => {
       embeds: [
         {
           title: roninAddress(address),
-          description: `**RON:** ${formatEther(ronBalance)}\n**ETH:** ${formatEther(wethBalance)}\n**Axies:** ${axiesBalance.toString()}\n`
+          description: `**RON:** ${formatEther(ronBalance)}\n**ETH:** ${formatEther(wethBalance)}\n**Axies:** ${axiesIdsList.length} (#${axiesIdsList.join(', ')})`
         }
       ]
     }

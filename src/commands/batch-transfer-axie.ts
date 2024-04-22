@@ -42,13 +42,13 @@ export const transferAllAxiesCommandHandler = async (addressTo: `0x${string}`) =
     // Get all axies from address
     const axiesIdsList = await getAxieIdsFromAddress(address, publicClient)
 
-    // check if the batch contract is approved to transfer the axies from address
+    // Check if the batch contract is approved to transfer the axies from address
     const isApproved = await publicClient.readContract({
       address: AXIE_PROXY.address,
       abi: AXIE_PROXY.abi,
       functionName: 'isApprovedForAll',
-      args: [address, ERC721_BATCH_TRANSFER]
-    }) as boolean
+      args: [address, ERC721_BATCH_TRANSFER.address]
+    })
     console.log('isApproved:', isApproved)
 
     // msg.sender has to call setApprovalForAll on _tokenContract to authorize this contract.
@@ -68,7 +68,7 @@ export const transferAllAxiesCommandHandler = async (addressTo: `0x${string}`) =
         {
           confirmations: 2,
           hash: approvalTxHash,
-          onReplaced: replacement => console.log(replacement),
+          onReplaced: replacement => { console.log(replacement) },
           pollingInterval: 1_000,
           timeout: 30_000
         }

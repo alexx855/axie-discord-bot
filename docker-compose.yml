@@ -9,6 +9,6 @@ services:
       - .:/workspace:cached
     command: ["npm", "run", "${NODE_DEV-start}"]
     ports:
-      - target: 3001
-        published: ${EXPRESS_PORT-3001}
+      - target: ${EXPRESS_PORT-3000}
+        published: 3003
         protocol: tcp
