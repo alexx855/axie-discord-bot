@@ -13,8 +13,15 @@ RUN npm ci
 # Copy the rest of your app's source code into the container
 COPY . .
 
-# Make port 3001 available to the world outside this container
-EXPOSE 3001
+# Define a build-time variable for the port
+ARG PORT=3000
+
+# Make port available to the world outside this container
+ENV \
+    PORT=${PORT} \
+    HOST=0.0.0.0
+ 
+EXPOSE ${PORT}
 
 # Run your app when the container launches
 CMD [ "npm", "start" ]
