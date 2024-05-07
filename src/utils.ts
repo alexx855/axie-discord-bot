@@ -1,10 +1,16 @@
 import { verifyKey } from 'discord-interactions'
 import { GRAPHQL_URL } from './constants'
+import { type Request, type Response } from 'express'
 
 export function VerifyDiscordRequest (clientKey: string) {
-  return function (req: any, res: any, buf: any, encoding: any) {
+  return function (req: Request, res: Response, buf: Buffer) {
     const signature = req.get('X-Signature-Ed25519')
     const timestamp = req.get('X-Signature-Timestamp')
+
+    if (signature === null || timestamp === null || signature === undefined || timestamp === undefined) {
+      res.status(400).send('Missing signature or timestamp')
+      throw new Error('Missing signature or timestamp')
+    }
 
     const isValidRequest = verifyKey(buf, signature, timestamp, clientKey)
     if (!isValidRequest) {
@@ -14,7 +20,7 @@ export function VerifyDiscordRequest (clientKey: string) {
   }
 }
 
-export async function discordRequest (endpoint: string, options: any): Promise<Response> {
+export async function discordRequest(endpoint: string, options: { method?: string, body?: any } = {}) {
   // append endpoint to root API URL
   const url = 'https://discord.com/api/v10/' + endpoint
   if (options?.body) options.body = JSON.stringify(options.body)
@@ -29,7 +35,7 @@ export async function discordRequest (endpoint: string, options: any): Promise<R
     headers: {
       Authorization: `Bot ${token}`,
       'Content-Type': 'application/json; charset=UTF-8',
-      'User-Agent': `AxieDiscordBot (https://github.com/alexx855/axie-discord-bot, ${process.env.npm_package_version})`
+      'User-Agent': `AxieDiscordBot (https://github.com/alexx855/mit-night-shop-bot, ${process.env.npm_package_version})`
     },
     ...options
   })
@@ -47,7 +53,7 @@ export async function apiRequest<T> (
   url: string,
   body: BodyInit | null = null,
   headers: Record<string, string> = {},
-  method: 'GET' | 'POST' = 'POST'
+  method: string = 'POST'
 ) {
   const response = await fetch(url, {
     method,
@@ -67,17 +73,8 @@ export function capitalize (str: string) {
 }
 
 export async function fetchAxieQuery<T> (query: string, variables: Record<string, any>, headers?: Record<string, string>, method = 'POST') {
-  const response = await fetch(GRAPHQL_URL, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers
-    },
-    body: JSON.stringify({ query, variables })
-  })
-
-  const res: T = await response.json()
-  return res
+  const response = await apiRequest<T>(GRAPHQL_URL, JSON.stringify({ query, variables }), headers, method)
+  return response
 }
 
 export async function InstallGuildCommands (appId: string, guildId: string, commands: any[]) {
@@ -121,12 +118,9 @@ export async function DeleteCommands () {
   // const commands = await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/guilds/${process.env.DISCORD_GUILD_ID}/commands`, { method: 'GET' })
   const data = await commands.json()
   for (const command of data) {
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     console.log(`Deleting command ${command.name} with id ${command.id}`)
 
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    // await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/guilds/${process.env.DISCORD_GUILD_ID}/commands/${command.id}`, { method: 'DELETE' })
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/guilds/${process.env.DISCORD_GUILD_ID}/commands/${command.id}`, { method: 'DELETE' })
     await discordRequest(`applications/${process.env.DISCORD_CLIENT_ID}/commands/${command.id}`, { method: 'DELETE' })
 
     // wait 4 seconds to avoid rate limit
@@ -147,8 +141,7 @@ export function editMessage (channelId: string, messageId: string, content: stri
 
   void discordRequest(endpoint, {
     method: 'PATCH',
-    body:
-    {
+    body: {
       content,
       components
     }

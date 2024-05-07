@@ -1,6 +1,12 @@
-# Axie Infinity Marketplace Bot
+# MitNightShopBot: Your personal 24/7 Discord Marketplace Bot for Axie Infinity
 
-This project provides a Discord bot that interacts with the Axie Infinity marketplace on the Ronin Network. The bot is capable of performing transactions using a private key. **Please exercise caution when deploying this bot, as it can execute transactions on behalf of the private key specified in the .env file.**
+Welcome to MitNightShop, your dedicated Discord bot for the Axie Infinity marketplace on the Ronin Network. Operating 24/7, this bot allows you to create and execute orders automatically, ensuring you never miss an opportunity.
+
+## Key Features:
+- **Automated Order Execution**: Set up your buy, sell, or trade orders and MitNightShopBot will execute them automatically, any time of day.
+- **User-Friendly Interface**: Simple and direct commands coupled with timely updates keep you well-informed and in control.
+
+**Please exercise caution when deploying this bot, as it can execute transactions on behalf of the private key (account) that must be specified in the `.env` file or as an environment variable.**
 
 ## Prerequisites
 
@@ -12,7 +18,7 @@ This project provides a Discord bot that interacts with the Axie Infinity market
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/alexx855/axie-discord-bot.git
+git clone https://github.com/alexx855/mit-night-shop-bot.git
 ```
 
 2. Install dependencies:
@@ -23,7 +29,7 @@ npm install
 
 3. Copy the .env.example file to .env and fill in the required values: 
 
-Complete your environment variables. Fetching discord credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
+Fetching discord credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
 
 
 ```bash
@@ -34,7 +40,6 @@ cp .env.example .env
 
 ```bash
 npm run install-commands
-
 ```
 
 5. Deploy the bot to vercel
@@ -43,10 +48,16 @@ npm run install-commands
 vercel --prod
 ```
 
-6. Configure your discord bot  **INTERACTIONS ENDPOINT URL** to use the deployed bot vercel url + /interactions. For example: **https://your-bot.vercel.app/interactions** in the discord developer portal. (https://discord.com/developers/applications/)
+6. Add environment variables to vercel (you can also use the vercel dashboard)
+
+```bash
+vercel env add
+```
+
+7. Configure your discord bot  **INTERACTIONS ENDPOINT URL** to use the deployed bot vercel url + /interactions. For example: **https://your-bot.vercel.app/interactions** in the discord developer portal. (https://discord.com/developers/applications/)
 
 ### Commands available
-
+- */ping* - Check if the bot is online
 - */axie_info $AXIE_ID* - Get axie info
 - */wallet* - Get bot wallet account info (ronin address, balance, etc)
 - */axie_buy $AXIE_ID* - Buy the given axie

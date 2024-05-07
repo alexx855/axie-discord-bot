@@ -1,5 +1,5 @@
 {
-  "name": "axie-discord-bot",
+  "name": "mit-night-shop-bot",
   "version": "2.0.1",
   "author": {
     "name": "alexx855",
@@ -19,20 +19,19 @@
     "axie-infinity",
     "discord-bot",
     "ronin-network",
-    "marketplace-transactions",
     "blockchain",
     "crypto-gaming",
     "web3-gaming",
     "nft",
-    "nft-marketplace",
-    "private-key-transactions"
+    "nft-marketplace"
   ],
   "license": "MIT",
   "engines": {
     "node": ">=20.x"
   },
   "scripts": {
-    "start": "nodemon src/index.ts",
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
     "build": "rimraf dist && tsc",
     "deploy": "vercel --prod",
     "install-commands": "npx ts-node src/install-commands.ts",

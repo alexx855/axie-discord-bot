@@ -60,6 +60,7 @@ export const interactionsHandler = async (req: Request, res: Response) => {
       case BUY_AXIE_COMMAND.name: {
         const axieId = data.options[0].value as string
 
+        // Syncronous call to buyAxieCommandHandler
         buyAxieCommandHandler(axieId)
           .then(result => {
             // Update the original message with the result
@@ -73,6 +74,8 @@ export const interactionsHandler = async (req: Request, res: Response) => {
             })
           })
           .catch(err => { console.error(err) })
+
+        // Early return deferring the response
         return res.status(200).send({
           type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
         })

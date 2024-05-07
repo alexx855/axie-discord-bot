@@ -220,7 +220,7 @@ export async function getAxieEmbed (axieId: string, resume = false) {
   return embed
 }
 
-export function getClassColor (axieClassName: string) {
+export function getClassColor(axieClassName: string) {
   let color = 0x000000
   switch (axieClassName) {
     case 'Beast':
