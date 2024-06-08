@@ -9,12 +9,20 @@
           "dist/**"
         ]
       }
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/((?!.*\\.\\w+$).*)",
       "dest": "dist/index.js"
+    },
+    {
+      "src": "/(.+\\.[a-z]+)$",
+      "dest": "/public/$1"
     }
   ]
 }
